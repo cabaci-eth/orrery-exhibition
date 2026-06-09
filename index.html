@@ -222,7 +222,9 @@ section{position:relative;z-index:2;}
   letter-spacing:.26em;text-transform:uppercase;color:var(--faint);
   opacity:0;animation:fadeUp 1.4s var(--ease) .82s forwards;
 }
-.hero .byline span{color:var(--brass);}
+.hero .byline .by-pre{display:block;color:var(--faint);}
+.hero .byline .by-names{display:block;margin-top:.7em;letter-spacing:.14em;}
+.hero .byline .nm{white-space:nowrap;color:var(--brass);}   /* never split a name across lines */
 
 .scroll-cue{
   position:absolute;bottom:34px;left:50%;translate:-50% 0;z-index:2;
@@ -519,7 +521,7 @@ footer .cite a:hover{color:var(--brass-bright);}
     <h1>ORRERY</h1>
     <p class="subtitle">A Mechanism for Seeing Time.</p>
     <p class="premise">Turn one gear a single time and a whole Earth year passes. As it turns, you watch the inner planets race around at their true relative speeds.</p>
-    <p class="byline">An exhibition instrument by <span>Miguel Wang</span> · <span>Lucas Chen</span> · <span>Edward Jiang</span></p>
+    <p class="byline"><span class="by-pre">An exhibition instrument by</span><span class="by-names"><span class="nm">Miguel Wang</span> · <span class="nm">Lucas Chen</span> · <span class="nm">Edward Jiang</span></span></p>
   </div>
   <div class="scroll-cue" aria-hidden="true">
     <span class="caption">Scroll</span>
