@@ -338,14 +338,28 @@ input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;bor
 .years-unit{font-family:var(--mono);font-size:.7rem;letter-spacing:.24em;color:var(--faint);text-transform:uppercase;display:block;margin-top:6px;}
 .readout .hair{margin:22px 0;}
 .planet-rows{display:flex;flex-direction:column;gap:2px;}
-.prow{display:grid;grid-template-columns:1fr auto auto;align-items:baseline;gap:12px;padding:9px 0;border-bottom:1px solid var(--hair);}
+.prow{display:grid;grid-template-columns:1fr auto auto;align-items:baseline;gap:12px;padding:9px 6px;border-bottom:1px solid var(--hair);margin:0 -6px;border-radius:8px;cursor:pointer;transition:background .3s var(--ease),box-shadow .3s var(--ease);}
 .prow:last-child{border-bottom:0;}
+.prow:hover{background:rgba(201,168,106,.045);}
+.prow.focused{background:rgba(201,168,106,.09);box-shadow:inset 2px 0 0 var(--brass);}
+.prow.focused .pn{color:#fff;}
+.prow:focus-visible{outline:2px solid var(--brass);outline-offset:2px;}
 .prow .pn{display:flex;align-items:center;gap:11px;font-size:.95rem;color:var(--text);letter-spacing:.02em;}
 .dot{width:9px;height:9px;border-radius:50%;flex:none;box-shadow:0 0 10px -1px currentColor;}
 .prow .mult{font-family:var(--mono);font-size:.74rem;color:var(--brass);letter-spacing:.04em;}
 .prow .cnt{font-family:var(--mono);font-size:.95rem;color:var(--text);font-variant-numeric:tabular-nums;min-width:5.4ch;text-align:right;}
 .prow .cnt small{color:var(--faint);font-size:.72em;letter-spacing:.1em;}
 .hint{margin-top:18px;color:var(--faint);font-size:.78rem;line-height:1.5;}
+.hint .tap-cue{color:var(--brass);}
+/* planet focus: pulsing halo + fact line */
+.focus-halo{transition:opacity .4s var(--ease);}
+.focus-halo.on{opacity:.45;animation:halopulse 1.9s ease-in-out infinite;}
+@keyframes halopulse{0%,100%{opacity:.2}50%{opacity:.62}}
+.focus-info{margin-top:18px;padding-top:16px;border-top:1px solid var(--hair);display:flex;flex-direction:column;gap:6px;animation:fiIn .5s var(--ease);}
+@keyframes fiIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.focus-info .fi-name{font-family:var(--serif);font-style:italic;font-size:1.4rem;line-height:1;}
+.focus-info .fi-row{font-family:var(--mono);font-size:.72rem;letter-spacing:.03em;color:var(--muted);}
+.focus-info .fi-row b{color:var(--text);font-weight:400;}
 
 /* ============================================================
    SIZE VIEW
@@ -594,7 +608,8 @@ footer .cite a:hover{color:var(--brass-bright);}
         <span class="years-unit">Earth years elapsed</span>
         <hr class="hair"/>
         <div class="planet-rows" id="rows"><!-- injected --></div>
-        <p class="hint">Orbits = years × (50 ÷ teeth). A planet gear's turn count <em>is</em> its orbit count. That is the whole idea.</p>
+        <div class="focus-info" id="focusInfo" hidden></div>
+        <p class="hint" id="readoutHint">Orbits = years × (50 ÷ teeth). A planet gear's turn count <em>is</em> its orbit count. <span class="tap-cue">Tap any planet to focus it.</span></p>
       </div>
     </div>
 
@@ -901,9 +916,11 @@ footer .cite a:hover{color:var(--brass-bright);}
   const TRAIL_N = 16;
 
   // ---- gear bodies into #gearLayer ----
+  const gearGroupByName = {};
   PLANETS.forEach(p=>{
     const built = buildGear({z:p.teeth, cx:p.pos[0], cy:p.pos[1], fill:"url(#gBrass)", isDrive:false, planet:p});
     gearLayer.appendChild(built.g);
+    gearGroupByName[p.name] = built.g;
     const phaseDeg = meshPhase(DRIVE_TEETH, p.teeth, p.angle) * 180/Math.PI;
     gears.push({rot:built.rot, ratio:DRIVE_TEETH/p.teeth, phase:phaseDeg, dir:-1});  // followers counter-rotate
   });
@@ -919,7 +936,7 @@ footer .cite a:hover{color:var(--brass-bright);}
   sunLayer.appendChild(sunCore);
 
   // ---- orbit rings + trails + labels, and the shared planet discs ----
-  PLANETS.forEach(p=>{
+  PLANETS.forEach((p,pi)=>{
     const ratio = DRIVE_TEETH/p.teeth;
     const ro = ORBIT_R[p.name];
     const rp = MODULE*p.teeth/2;
@@ -929,7 +946,8 @@ footer .cite a:hover{color:var(--brass-bright);}
     const phaseRad = meshPhase(DRIVE_TEETH, p.teeth, p.angle);
 
     // orbit ring (faint, tinted with the planet colour)
-    orbitLayer.appendChild(el("circle",{cx:0,cy:0,r:ro, fill:"none", stroke:p.hex, "stroke-opacity":.24, "stroke-width":.8}));
+    const ringEl = el("circle",{cx:0,cy:0,r:ro, fill:"none", stroke:p.hex, "stroke-opacity":.24, "stroke-width":.8});
+    orbitLayer.appendChild(ringEl);
     orbitLayer.appendChild(el("circle",{cx:0,cy:0,r:ro, fill:"none", stroke:"rgba(244,241,234,.05)", "stroke-width":.4}));
 
     // comet trail (segments fade from the planet backward; updated each frame)
@@ -942,23 +960,28 @@ footer .cite a:hover{color:var(--brass-bright);}
     olbl.textContent=p.name.toUpperCase();
     orbitLayer.appendChild(olbl);
 
-    // the shared planet disc (morphs between gear rim and orbit) + soft glow
-    const disc = el("g");
+    // the shared planet disc (morphs between gear rim and orbit) + pulse halo + soft glow
+    const disc = el("g",{"data-pi":pi, style:"cursor:pointer"});
+    const focusHalo = el("circle",{r:discR*2.4, fill:"none", stroke:p.hex, "stroke-width":1.1, opacity:0, class:"focus-halo"});
     const glow = el("circle",{r:discR*1.8, fill:p.hex, opacity:0, filter:"url(#soft)"});
+    disc.appendChild(focusHalo);
     disc.appendChild(glow);
     disc.appendChild(planetSphere(p.name, discR));
     planetLayer.appendChild(disc);
 
-    planetView.push({ratio, ro, markerR, discR, dir:-1, phaseRad,
-      gx:p.pos[0], gy:p.pos[1], disc, glow, segs, olbl, trailAngle:Math.min(0.35+ratio*0.42,2.5)});
+    planetView.push({p, ratio, ro, markerR, discR, dir:-1, phaseRad,
+      gx:p.pos[0], gy:p.pos[1], disc, glow, segs, olbl, ringEl, focusHalo,
+      gearGroup:gearGroupByName[p.name], focusFactor:1,
+      trailAngle:Math.min(0.35+ratio*0.42,2.5)});
   });
 
   /* ============================================================
      5.  Live readout rows + data table + size balls
      ============================================================ */
   const rows = document.getElementById("rows");
-  PLANETS.forEach(p=>{
-    const r = document.createElement("div"); r.className="prow";
+  PLANETS.forEach((p,pi)=>{
+    const r = document.createElement("div"); r.className="prow"; r.dataset.pi=pi;
+    r.setAttribute("role","button"); r.tabIndex=0; r.setAttribute("aria-label",`Focus ${p.name}`);
     r.innerHTML = `<span class="pn"><span class="dot" style="background:${p.hex};color:${p.hex}"></span>${p.name}</span>`+
                   `<span class="mult">${(DRIVE_TEETH/p.teeth).toFixed(2)}×</span>`+
                   `<span class="cnt" data-teeth="${p.teeth}">0.00 <small>orbits</small></span>`;
@@ -1062,11 +1085,11 @@ footer .cite a:hover{color:var(--brass-bright);}
           v.segs[i].setAttribute("y1",(v.ro*Math.sin(a1)).toFixed(2));
           v.segs[i].setAttribute("x2",(v.ro*Math.cos(a2)).toFixed(2));
           v.segs[i].setAttribute("y2",(v.ro*Math.sin(a2)).toFixed(2));
-          v.segs[i].setAttribute("opacity",((1-i/n)*0.72*m).toFixed(3));
+          v.segs[i].setAttribute("opacity",((1-i/n)*0.72*m*v.focusFactor).toFixed(3));
         }
       } else { for(const s of v.segs) s.setAttribute("opacity","0"); }
-      v.glow.setAttribute("opacity",(m*0.3).toFixed(3));
-      v.olbl.setAttribute("opacity",(m*0.6).toFixed(3));
+      v.glow.setAttribute("opacity",(m*0.3*v.focusFactor).toFixed(3));
+      v.olbl.setAttribute("opacity",(m*0.6*v.focusFactor).toFixed(3));
     });
   }
 
@@ -1114,6 +1137,39 @@ footer .cite a:hover{color:var(--brass-bright);}
   // deep link: open straight into the orbits view (handy for sharing / a QR variant)
   if(/orbits/i.test(location.hash+location.search)) setView(true);
 
+  /* ---- tap a planet to focus it (spotlight + fact line) ---- */
+  const focusInfo = document.getElementById("focusInfo");
+  const readoutHint = document.getElementById("readoutHint");
+  let focused = -1;
+  function applyFocus(idx){
+    focused = (idx===focused) ? -1 : idx;     // tapping the same planet clears it
+    const f = focused;
+    planetView.forEach((v,i)=>{
+      const on = f<0 || i===f;
+      v.focusFactor = on ? 1 : 0.3;
+      v.disc.setAttribute("opacity", f<0?1:(i===f?1:0.4));
+      v.ringEl.setAttribute("stroke-opacity", f<0?0.24:(i===f?0.7:0.1));
+      v.gearGroup.setAttribute("opacity", f<0?1:(i===f?1:0.42));
+      v.focusHalo.classList.toggle("on", i===f);
+    });
+    [...rows.children].forEach((r,i)=>r.classList.toggle("focused", i===f));
+    if(f<0){ focusInfo.hidden=true; readoutHint.style.display=""; }
+    else{
+      const p=PLANETS[f];
+      readoutHint.style.display="none";
+      focusInfo.hidden=false;
+      focusInfo.innerHTML =
+        `<span class="fi-name" style="color:${p.hex}">${p.name}</span>`+
+        `<span class="fi-row"><b>${(DRIVE_TEETH/p.teeth).toFixed(2)}</b> orbits per Earth-year · <b>${p.teeth}-tooth</b> gear</span>`+
+        `<span class="fi-row">year of <b>${p.period.toFixed(2)}</b> days · <b>${p.dia.toLocaleString()}</b> km across</span>`;
+    }
+    render();
+  }
+  [...rows.children].forEach((r,i)=>{
+    r.addEventListener("click",()=>applyFocus(i));
+    r.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); applyFocus(i);} });
+  });
+
   function setPlaying(on){
     playing=on;
     playBtn.classList.toggle("playing",on);
@@ -1127,8 +1183,8 @@ footer .cite a:hover{color:var(--brass-bright);}
   document.getElementById("reset").addEventListener("click",()=>{years=0;setPlaying(false);render();});
   sliderEl.addEventListener("input",()=>{ setPlaying(false); years=parseFloat(sliderEl.value); render(); });
 
-  /* ---- crank / drag interaction ---- */
-  let dragging=false, lastAng=0;
+  /* ---- crank / drag interaction (+ tap-to-focus on a planet) ---- */
+  let dragging=false, lastAng=0, sx=0, sy=0, downPlanet=-1;
   function pivotScreen(){                 // screen-space position of the SVG origin (Sun centre)
     const m=svg.getScreenCTM();
     return {x:m.e, y:m.f};                 // origin (0,0) maps to (e,f)
@@ -1138,6 +1194,9 @@ footer .cite a:hover{color:var(--brass-bright);}
   function startDrag(e){
     dragging=true; svg.classList.add("grabbing");
     const pv=pivotScreen(); lastAng=angleAt(e,pv);
+    sx=e.clientX; sy=e.clientY;
+    const hit = e.target.closest && e.target.closest("[data-pi]");
+    downPlanet = hit ? +hit.dataset.pi : -1;
     svg.setPointerCapture && e.pointerId!=null && svg.setPointerCapture(e.pointerId);
     e.preventDefault();
   }
@@ -1149,7 +1208,14 @@ footer .cite a:hover{color:var(--brass-bright);}
     if(years<0) years=0;
     lastAng=a; render();
   }
-  function endDrag(){ dragging=false; svg.classList.remove("grabbing"); }
+  function endDrag(e){
+    if(dragging && e && Math.hypot((e.clientX||sx)-sx,(e.clientY||sy)-sy)<6){
+      // a tap, not a crank: focus the tapped planet, or clear focus on empty space
+      if(downPlanet>=0) applyFocus(downPlanet);
+      else if(focused>=0) applyFocus(focused);   // applyFocus(same) clears it
+    }
+    dragging=false; downPlanet=-1; svg.classList.remove("grabbing");
+  }
 
   // drag anywhere on the mechanism, with the crank handle as the obvious grip
   svg.addEventListener("pointerdown",startDrag);
