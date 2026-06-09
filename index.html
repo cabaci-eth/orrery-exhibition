@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#080a11" />
 <meta name="color-scheme" content="dark" />
-<title>ORRERY — A Mechanism for Seeing Time</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<link rel="apple-touch-icon" href="favicon.svg" />
+<title>ORRERY · A Mechanism for Seeing Time</title>
 <meta name="description" content="A digital orrery: turn one gear once for one Earth year and watch the inner planets race at their true relative orbital speeds. Tooth counts derived from NASA NSSDCA periods." />
 
 <!-- ── Fonts: high-contrast serif display + geometric sans + mono data ── -->
@@ -19,7 +21,7 @@
 
 <style>
 /* ============================================================
-   ORRERY — celestial instrument microsite
+   ORRERY: celestial instrument microsite
    Design tokens
    ============================================================ */
 :root{
@@ -49,7 +51,7 @@
   --earth:#6f93a6;
   --mars:#b56a4c;
 
-  /* The one refined accent gradient — used sparingly */
+  /* The one refined accent gradient: used sparingly */
   --accent-grad:linear-gradient(120deg,var(--brass-deep),var(--brass) 45%,var(--brass-bright));
 
   /* Motion */
@@ -63,7 +65,7 @@
 
   --maxw:1240px;
 
-  /* shared depth — panels read as raised instrument plates (soft, not heavy) */
+  /* shared depth: panels read as raised instrument plates (soft, not heavy) */
   --elev:0 26px 60px -42px rgba(0,0,0,.85), 0 6px 18px -12px rgba(0,0,0,.5);
   --plate-top:inset 0 1px 0 rgba(255,247,228,.06);
 }
@@ -71,11 +73,11 @@
 *{box-sizing:border-box;}
 html{
   scroll-behavior:smooth;-webkit-text-size-adjust:100%;
-  /* the deep ink shows through the elastic over-scroll at top/bottom — no more white */
+  /* the deep ink shows through the elastic over-scroll at top/bottom: no more white */
   background:#080a11;
   color-scheme:dark;
 }
-/* restrained scrollbar — thin, dark, brass on hover */
+/* restrained scrollbar: thin, dark, brass on hover */
 *{scrollbar-width:thin;scrollbar-color:#222838 #080a11;}
 ::-webkit-scrollbar{width:11px;height:11px;}
 ::-webkit-scrollbar-track{background:#080a11;}
@@ -463,7 +465,7 @@ footer .cite a:hover{color:var(--brass-bright);}
     <span class="label eyebrow">A mechanism for seeing time</span>
     <h1>ORRERY</h1>
     <p class="subtitle">A Mechanism for Seeing Time.</p>
-    <p class="premise">Turn one gear a single time and a whole Earth year passes — and as it turns, you watch the inner planets race around at their true relative speeds.</p>
+    <p class="premise">Turn one gear a single time and a whole Earth year passes. As it turns, you watch the inner planets race around at their true relative speeds.</p>
     <p class="byline">An exhibition instrument by <span>Miguel Wang</span> · <span>Lucas Chen</span> · <span>Edward Jiang</span></p>
   </div>
   <div class="scroll-cue" aria-hidden="true">
@@ -476,7 +478,7 @@ footer .cite a:hover{color:var(--brass-bright);}
 <section class="orrery-sec" id="mechanism">
   <div class="wrap">
     <div class="sec-head reveal">
-      <span class="label">01 — The instrument</span>
+      <span class="label">01 · The instrument</span>
       <h2>Five gears, one year per turn.</h2>
       <p class="lede">A central fifty-tooth drive gear carries the Sun. Each planet gear is cut with the exact tooth count that makes it spin at that planet's real orbital frequency. Crank the Sun, drag it, or let it run.</p>
     </div>
@@ -514,7 +516,7 @@ footer .cite a:hover{color:var(--brass-bright);}
         <span class="years-unit">Earth years elapsed</span>
         <hr class="hair"/>
         <div class="planet-rows" id="rows"><!-- injected --></div>
-        <p class="hint">Orbits = years × (50 ÷ teeth). A planet gear's turn count <em>is</em> its orbit count — that is the whole idea.</p>
+        <p class="hint">Orbits = years × (50 ÷ teeth). A planet gear's turn count <em>is</em> its orbit count. That is the whole idea.</p>
       </div>
     </div>
 
@@ -536,16 +538,16 @@ footer .cite a:hover{color:var(--brass-bright);}
 <section class="size-sec" id="sizes">
   <div class="wrap">
     <div class="sec-head reveal">
-      <span class="label">02 — True scale</span>
+      <span class="label">02 · True scale</span>
       <h2>The same four worlds, at their real relative sizes.</h2>
-      <p class="lede">The gears show <em>time</em>. Here is <em>size</em> — the four model balls at one millimetre to 637 kilometres. Venus and Earth come out as near-perfect twins.</p>
+      <p class="lede">The gears show <em>time</em>. Here is <em>size</em>: the four model balls at one millimetre to 637 kilometres. Venus and Earth come out as near-perfect twins.</p>
     </div>
     <div class="size-stage reveal">
       <div class="balls" id="balls"><!-- injected --></div>
       <p class="twins-note">Mercury is a marble; Mars a little larger; <span style="color:var(--text)">Venus and Earth are twins</span>, separated here by less than a millimetre.</p>
       <div class="sun-note">
         <span class="glyph" aria-hidden="true"></span>
-        <span>At this same scale the Sun would be <span style="color:var(--text)">2.18&nbsp;metres</span> across — far too large to place beside these, which is why on the board it stands in symbolically at the centre.</span>
+        <span>At this same scale the Sun would be <span style="color:var(--text)">2.18&nbsp;metres</span> across, far too large to place beside these, which is why on the board it stands in symbolically at the centre.</span>
       </div>
     </div>
   </div>
@@ -555,7 +557,7 @@ footer .cite a:hover{color:var(--brass-bright);}
 <section class="science-sec" id="science">
   <div class="wrap">
     <div class="sec-head reveal">
-      <span class="label">03 — The physics</span>
+      <span class="label">03 · The physics</span>
       <h2>Two laws, meshed together.</h2>
       <p class="lede">A planet's year is fixed by how far it orbits; a gear's speed is fixed by how many teeth it has. Choose the teeth correctly and one law impersonates the other.</p>
     </div>
@@ -568,7 +570,7 @@ footer .cite a:hover{color:var(--brass-bright);}
       <div class="law reveal">
         <h3>The gear-meshing law</h3>
         <div class="eq" data-tex="\dfrac{\omega_1}{\omega_2} = \dfrac{N_2}{N_1}"></div>
-        <p>Two meshed gears turn at a ratio set only by their tooth counts <span class="key">N</span>. Drive a planet gear from the fifty-tooth Sun and it spins <span class="key">50 ÷ N</span> times per year — chosen to match that planet's real orbital frequency to under one percent.</p>
+        <p>Two meshed gears turn at a ratio set only by their tooth counts <span class="key">N</span>. Drive a planet gear from the fifty-tooth Sun and it spins <span class="key">50 ÷ N</span> times per year, chosen to match that planet's real orbital frequency to under one percent.</p>
       </div>
     </div>
   </div>
@@ -578,7 +580,7 @@ footer .cite a:hover{color:var(--brass-bright);}
 <section class="data-sec" id="data">
   <div class="wrap">
     <div class="sec-head reveal">
-      <span class="label">04 — The numbers</span>
+      <span class="label">04 · The numbers</span>
       <h2>Derived from the record.</h2>
     </div>
     <div class="table-scroll reveal">
@@ -616,7 +618,7 @@ footer .cite a:hover{color:var(--brass-bright);}
 
 <script>
 /* ============================================================
-   ORRERY — interactive mechanism
+   ORRERY: interactive mechanism
    All motion is driven from a single state variable `years`.
    ============================================================ */
 (function(){
@@ -685,7 +687,7 @@ footer .cite a:hover{color:var(--brass-bright);}
   }
 
   /* ============================================================
-     2.  Mesh phase — solve once per planet so teeth interlock.
+     2.  Mesh phase: solve once per planet so teeth interlock.
      Condition: along the line of centres the two surfaces are
      offset by half a circular pitch (tooth ↔ space), expressed
      in arc length so it is independent of tooth count.
@@ -709,7 +711,7 @@ footer .cite a:hover{color:var(--brass-bright);}
     const {z, cx, cy, fill, isDrive, planet} = opts;
     const rp = MODULE*z/2;
     const ra = rp + MODULE;                                           // tip (outer) radius
-    // planet marker size + the radius at which it rides — pushed out near the rim
+    // planet marker size + the radius at which it rides: pushed out near the rim
     const mr = isDrive ? 0 : Math.max(2, planet.ball*0.32);
     const markerR = isDrive ? rp*0.6 : (rp - mr - 2);
     const g = el("g",{transform:`translate(${cx} ${cy})`});           // position
@@ -754,7 +756,7 @@ footer .cite a:hover{color:var(--brass-bright);}
       mk.appendChild(disc);
       mk.appendChild(el("circle",{cx:mx-mr*0.32,cy:-mr*0.32,r:mr*0.4,fill:"rgba(255,255,255,.45)"}));
       rot.appendChild(mk);
-      // small mono label (fixed, not rotated) — always placed OUTSIDE the gear rim,
+      // small mono label (fixed, not rotated): always placed OUTSIDE the gear rim,
       // on the side facing away from the Sun, with a dark halo for legibility
       const above = cy < -10;                          // top gear → label above it
       const ly = above ? -(ra+12) : (ra+14);
@@ -816,7 +818,7 @@ footer .cite a:hover{color:var(--brass-bright);}
     tbody.appendChild(tr);
   });
 
-  // size balls — scale model-mm up to on-screen px (×6.4 reads well)
+  // size balls: scale model-mm up to on-screen px (×6.4 reads well)
   const ballBox = document.getElementById("balls");
   const PXPMM = 6.4;
   PLANETS.forEach(p=>{
@@ -834,7 +836,7 @@ footer .cite a:hover{color:var(--brass-bright);}
   }
 
   /* ============================================================
-     6.  Animation — single rAF, transforms only (60fps)
+     6.  Animation: single rAF, transforms only (60fps)
      ============================================================ */
   let years = 0;                 // master state
   let playing = !reduceMotion;   // gentle auto-rotate unless reduced motion
@@ -926,7 +928,7 @@ footer .cite a:hover{color:var(--brass-bright);}
   render();
 
   /* ============================================================
-     7.  Hero motif — concentric rings + a faint involute gear
+     7.  Hero motif: concentric rings + a faint involute gear
      ============================================================ */
   (function(){
     const m=document.getElementById("motif");
