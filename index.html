@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ORRERY — A Mechanism for Seeing Time</title>
+<meta name="description" content="A digital orrery: turn one gear once for one Earth year and watch the inner planets race at their true relative orbital speeds. Tooth counts derived from NASA NSSDCA periods." />
+
+<!-- ── Fonts: high-contrast serif display + geometric sans + mono data ── -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+
+<!-- ── KaTeX for typeset equations (lightweight, CDN only) ── -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous" />
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" integrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8" crossorigin="anonymous"></script>
+
+<style>
+/* ============================================================
+   ORRERY — celestial instrument microsite
+   Design tokens
+   ============================================================ */
+:root{
+  /* Deep-space ink palette (not pure black) */
+  --ink-0:#070810;        /* deepest, page bottom */
+  --ink-1:#0a0c14;        /* base */
+  --ink-2:#11141e;        /* raised panels */
+  --ink-3:#161a26;        /* hairline-lit surfaces */
+
+  /* Warm brass / gold accents */
+  --brass:#c9a86a;
+  --brass-bright:#ecd2a0;
+  --brass-deep:#9c7f4e;
+
+  /* Starlight text */
+  --text:#f4f1ea;
+  --muted:#9298a6;        /* cool grey for secondary */
+  --faint:#5b6170;
+
+  /* Hairlines */
+  --hair:rgba(244,241,234,.10);
+  --hair-strong:rgba(244,241,234,.18);
+
+  /* Muted, realistic planet colours */
+  --mercury:#9a8c7d;
+  --venus:#d8bd8e;
+  --earth:#6f93a6;
+  --mars:#b56a4c;
+
+  /* The one refined accent gradient — used sparingly */
+  --accent-grad:linear-gradient(120deg,var(--brass-deep),var(--brass) 45%,var(--brass-bright));
+
+  /* Motion */
+  --ease:cubic-bezier(.22,.61,.36,1);
+  --ease-out:cubic-bezier(.16,1,.3,1);
+
+  /* Type scale via fluid clamps */
+  --serif:"Cormorant Garamond",Georgia,serif;
+  --sans:"Inter",system-ui,-apple-system,sans-serif;
+  --mono:"Space Mono","SFMono-Regular",Menlo,monospace;
+
+  --maxw:1240px;
+}
+
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;}
+body{
+  margin:0;
+  background:var(--ink-1);
+  color:var(--text);
+  font-family:var(--sans);
+  font-weight:300;
+  line-height:1.6;
+  letter-spacing:.01em;
+  overflow-x:hidden;
+  /* Vertical depth gradient over the whole document */
+  background:
+    radial-gradient(120% 80% at 50% -10%, #13172300 40%, #0710180a 100%),
+    linear-gradient(180deg,#0c0f18 0%,var(--ink-1) 30%,var(--ink-0) 100%);
+  background-attachment:fixed;
+}
+::selection{background:rgba(201,168,106,.28);color:#fff;}
+
+/* Subtle film grain + vignette layered above the background, below content */
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:1;
+  background:
+    radial-gradient(130% 100% at 50% 50%, transparent 55%, rgba(0,0,0,.55) 100%);
+  mix-blend-mode:multiply;
+}
+.grain{
+  position:fixed;inset:-50%;z-index:1;pointer-events:none;opacity:.035;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+
+/* Parallax starfield canvases */
+.stars{position:fixed;inset:0;z-index:0;pointer-events:none;display:block;}
+
+/* ── Shared layout helpers ── */
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 clamp(20px,5vw,64px);}
+section{position:relative;z-index:2;}
+
+/* Small monospace eyebrow / caption labels */
+.label{
+  font-family:var(--mono);font-size:.66rem;font-weight:400;
+  letter-spacing:.34em;text-transform:uppercase;color:var(--brass);
+  display:inline-block;
+}
+.caption{
+  font-family:var(--mono);font-size:.66rem;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--faint);
+}
+.hair{height:1px;background:var(--hair);border:0;margin:0;}
+
+/* Section heading block */
+.sec-head{margin-bottom:clamp(28px,5vw,56px);}
+.sec-head h2{
+  font-family:var(--serif);font-weight:500;
+  font-size:clamp(2.1rem,5.2vw,3.6rem);line-height:1.04;
+  letter-spacing:.005em;margin:.5rem 0 0;color:var(--text);
+}
+.sec-head p.lede{
+  max-width:54ch;margin:1.1rem 0 0;color:var(--muted);
+  font-size:clamp(1rem,1.6vw,1.12rem);font-weight:300;
+}
+
+/* Scroll-reveal */
+.reveal{opacity:0;transform:translateY(26px);transition:opacity 1.1s var(--ease),transform 1.1s var(--ease);}
+.reveal.in{opacity:1;transform:none;}
+
+/* ============================================================
+   Fixed slim header (fades in after hero)
+   ============================================================ */
+.topbar{
+  position:fixed;top:0;left:0;right:0;z-index:40;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:18px clamp(20px,5vw,64px);
+  opacity:0;transform:translateY(-8px);transition:opacity .7s var(--ease),transform .7s var(--ease);
+  pointer-events:none;
+  background:linear-gradient(180deg,rgba(7,8,16,.66),rgba(7,8,16,0));
+  backdrop-filter:blur(2px);
+}
+.topbar.show{opacity:1;transform:none;}
+.topbar .mark{font-family:var(--serif);font-size:1.15rem;letter-spacing:.42em;color:var(--text);padding-left:.42em;}
+.topbar .src{color:var(--faint);}
+
+/* ============================================================
+   HERO
+   ============================================================ */
+.hero{
+  min-height:100svh;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;
+  padding:120px 20px 80px;position:relative;overflow:hidden;
+}
+/* faint self-rotating gear motif behind hero */
+.hero-motif{
+  position:absolute;top:50%;left:50%;width:min(160vh,1500px);aspect-ratio:1;
+  translate:-50% -50%;z-index:0;pointer-events:none;
+  opacity:.16;
+}
+.hero-motif svg{width:100%;height:100%;display:block;}
+.spin-slow{transform-box:fill-box;transform-origin:center;animation:spin 150s linear infinite;}
+.spin-rev{transform-box:fill-box;transform-origin:center;animation:spin 110s linear infinite reverse;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+.hero-inner{position:relative;z-index:2;max-width:880px;}
+.hero .eyebrow{margin-bottom:clamp(22px,4vw,34px);opacity:0;animation:fadeUp 1.1s var(--ease) .15s forwards;}
+.hero h1{
+  font-family:var(--serif);font-weight:500;
+  font-size:clamp(4.2rem,17vw,11.5rem);line-height:.92;
+  letter-spacing:.16em;margin:0 0 0 .16em;
+  background:linear-gradient(180deg,#fffdf8,#e7dcc4 55%,#b89a63);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  opacity:0;animation:fadeUp 1.4s var(--ease) .28s forwards;
+}
+.hero .subtitle{
+  font-family:var(--serif);font-style:italic;font-weight:400;
+  font-size:clamp(1.3rem,3.6vw,2.05rem);color:var(--brass-bright);
+  margin:.55em 0 0;letter-spacing:.02em;
+  opacity:0;animation:fadeUp 1.4s var(--ease) .45s forwards;
+}
+.hero .premise{
+  max-width:46ch;margin:clamp(26px,4vw,38px) auto 0;
+  color:var(--muted);font-size:clamp(1rem,1.7vw,1.16rem);font-weight:300;
+  opacity:0;animation:fadeUp 1.4s var(--ease) .62s forwards;
+}
+@keyframes fadeUp{from{opacity:0;transform:translateY(22px);}to{opacity:1;transform:none;}}
+
+.scroll-cue{
+  position:absolute;bottom:34px;left:50%;translate:-50% 0;z-index:2;
+  display:flex;flex-direction:column;align-items:center;gap:12px;
+  opacity:0;animation:fadeUp 1.2s var(--ease) 1s forwards;
+}
+.scroll-cue .caption{color:var(--faint);}
+.scroll-cue .line{width:1px;height:46px;background:linear-gradient(var(--brass),transparent);position:relative;overflow:hidden;}
+.scroll-cue .line::after{content:"";position:absolute;top:-50%;left:0;width:100%;height:50%;background:var(--brass-bright);animation:drop 2.4s var(--ease) infinite;}
+@keyframes drop{0%{top:-50%;}60%,100%{top:100%;}}
+
+/* ============================================================
+   ORRERY centerpiece
+   ============================================================ */
+.orrery-sec{padding:clamp(80px,12vh,150px) 0 clamp(60px,9vh,120px);}
+.stage{
+  display:grid;grid-template-columns:1.55fr .95fr;gap:clamp(24px,4vw,56px);
+  align-items:center;
+}
+.orrery-frame{
+  position:relative;border:1px solid var(--hair);border-radius:14px;
+  background:
+    radial-gradient(120% 120% at 50% 0%, rgba(201,168,106,.05), transparent 60%),
+    linear-gradient(180deg,rgba(22,26,38,.5),rgba(10,12,20,.35));
+  padding:clamp(10px,2vw,26px);overflow:hidden;
+  box-shadow:0 40px 120px -50px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.04);
+}
+.orrery-frame::before{ /* corner ticks */
+  content:"";position:absolute;inset:12px;border-radius:8px;
+  background:
+    linear-gradient(var(--hair),var(--hair)) left 0 top 0/18px 1px no-repeat,
+    linear-gradient(var(--hair),var(--hair)) left 0 top 0/1px 18px no-repeat,
+    linear-gradient(var(--hair),var(--hair)) right 0 top 0/18px 1px no-repeat,
+    linear-gradient(var(--hair),var(--hair)) right 0 top 0/1px 18px no-repeat,
+    linear-gradient(var(--hair),var(--hair)) left 0 bottom 0/18px 1px no-repeat,
+    linear-gradient(var(--hair),var(--hair)) left 0 bottom 0/1px 18px no-repeat,
+    linear-gradient(var(--hair),var(--hair)) right 0 bottom 0/18px 1px no-repeat,
+    linear-gradient(var(--hair),var(--hair)) right 0 bottom 0/1px 18px no-repeat;
+  pointer-events:none;
+}
+#orrery{width:100%;height:auto;display:block;touch-action:none;cursor:grab;}
+#orrery.grabbing{cursor:grabbing;}
+
+/* Controls */
+.controls{margin-top:22px;display:flex;flex-direction:column;gap:18px;}
+.ctl-row{display:flex;align-items:center;gap:18px;}
+.btn{
+  appearance:none;border:1px solid var(--hair-strong);background:var(--ink-2);
+  color:var(--text);font-family:var(--mono);font-size:.72rem;letter-spacing:.18em;
+  text-transform:uppercase;padding:12px 20px;border-radius:40px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:10px;transition:all .4s var(--ease);
+  white-space:nowrap;
+}
+.btn:hover{border-color:var(--brass);color:var(--brass-bright);background:var(--ink-3);}
+.btn:focus-visible{outline:2px solid var(--brass);outline-offset:3px;}
+.btn .ico{width:9px;height:11px;display:inline-block;position:relative;}
+.btn .ico::before{content:"";position:absolute;inset:0;border-style:solid;border-width:5.5px 0 5.5px 9px;border-color:transparent transparent transparent currentColor;}
+.btn.playing .ico::before{border-width:0;width:3px;height:11px;background:currentColor;box-shadow:6px 0 0 currentColor;border:0;}
+
+/* Range slider */
+.slider-wrap{flex:1;display:flex;flex-direction:column;gap:8px;min-width:0;}
+.slider-wrap .caption{display:flex;justify-content:space-between;color:var(--faint);}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:100%;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,var(--brass) var(--fill,0%),var(--hair-strong) var(--fill,0%));
+  outline:none;cursor:pointer;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:16px;height:16px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,var(--brass-bright),var(--brass-deep));
+  border:1px solid rgba(255,255,255,.35);box-shadow:0 0 0 4px rgba(201,168,106,.12),0 2px 8px rgba(0,0,0,.5);
+  transition:box-shadow .3s var(--ease);
+}
+input[type=range]::-webkit-slider-thumb:hover{box-shadow:0 0 0 7px rgba(201,168,106,.18),0 2px 8px rgba(0,0,0,.5);}
+input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;border:1px solid rgba(255,255,255,.35);background:var(--brass);}
+
+/* Readout panel */
+.readout{
+  border:1px solid var(--hair);border-radius:14px;padding:clamp(22px,3vw,30px);
+  background:linear-gradient(180deg,rgba(22,26,38,.55),rgba(10,12,20,.4));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04);
+}
+.readout .label{margin-bottom:14px;}
+.years{
+  font-family:var(--serif);font-weight:500;line-height:1;
+  font-size:clamp(2.8rem,6vw,4rem);letter-spacing:.01em;
+  background:var(--accent-grad);-webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.years-unit{font-family:var(--mono);font-size:.7rem;letter-spacing:.24em;color:var(--faint);text-transform:uppercase;display:block;margin-top:6px;}
+.readout .hair{margin:22px 0;}
+.planet-rows{display:flex;flex-direction:column;gap:2px;}
+.prow{display:grid;grid-template-columns:1fr auto auto;align-items:baseline;gap:12px;padding:9px 0;border-bottom:1px solid var(--hair);}
+.prow:last-child{border-bottom:0;}
+.prow .pn{display:flex;align-items:center;gap:11px;font-size:.95rem;color:var(--text);letter-spacing:.02em;}
+.dot{width:9px;height:9px;border-radius:50%;flex:none;box-shadow:0 0 10px -1px currentColor;}
+.prow .mult{font-family:var(--mono);font-size:.74rem;color:var(--brass);letter-spacing:.04em;}
+.prow .cnt{font-family:var(--mono);font-size:.95rem;color:var(--text);font-variant-numeric:tabular-nums;min-width:5.4ch;text-align:right;}
+.prow .cnt small{color:var(--faint);font-size:.72em;letter-spacing:.1em;}
+.hint{margin-top:18px;color:var(--faint);font-size:.78rem;line-height:1.5;}
+
+/* ============================================================
+   SIZE VIEW
+   ============================================================ */
+.size-sec{padding:clamp(80px,12vh,140px) 0;}
+.size-stage{
+  border:1px solid var(--hair);border-radius:14px;padding:clamp(34px,6vw,72px) clamp(20px,4vw,56px);
+  background:radial-gradient(120% 140% at 50% 120%,rgba(201,168,106,.05),transparent 60%),linear-gradient(180deg,rgba(18,21,31,.5),rgba(10,12,20,.3));
+  display:flex;flex-direction:column;align-items:center;
+}
+.balls{display:flex;align-items:flex-end;justify-content:center;gap:clamp(26px,7vw,90px);flex-wrap:wrap;width:100%;}
+.ball-col{display:flex;flex-direction:column;align-items:center;gap:18px;}
+.ball{border-radius:50%;position:relative;box-shadow:inset -8px -8px 24px rgba(0,0,0,.55),0 18px 50px -20px rgba(0,0,0,.9);}
+.ball::after{content:"";position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.5),transparent 42%);opacity:.5;}
+.ball-meta{text-align:center;}
+.ball-meta .bn{font-family:var(--serif);font-size:1.25rem;color:var(--text);font-weight:500;}
+.ball-meta .bd{font-family:var(--mono);font-size:.68rem;letter-spacing:.16em;color:var(--faint);text-transform:uppercase;margin-top:3px;}
+.twins-note{margin-top:clamp(30px,5vw,48px);text-align:center;max-width:60ch;color:var(--muted);font-size:.96rem;}
+.sun-note{margin-top:18px;display:flex;align-items:center;gap:14px;color:var(--faint);font-size:.82rem;text-align:left;max-width:62ch;}
+.sun-note .glyph{flex:none;width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 40% 35%,var(--brass-bright),var(--brass-deep));box-shadow:0 0 24px -2px var(--brass);}
+
+/* ============================================================
+   SCIENCE
+   ============================================================ */
+.science-sec{padding:clamp(80px,12vh,140px) 0;}
+.law-grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(22px,3vw,40px);}
+.law{
+  border:1px solid var(--hair);border-radius:14px;padding:clamp(26px,3.4vw,40px);
+  background:linear-gradient(180deg,rgba(18,21,31,.5),rgba(10,12,20,.3));
+  display:flex;flex-direction:column;gap:18px;
+}
+.law h3{font-family:var(--serif);font-weight:500;font-size:1.7rem;margin:0;color:var(--text);}
+.law .eq{
+  padding:22px 12px;border-top:1px solid var(--hair);border-bottom:1px solid var(--hair);
+  font-size:1.4rem;color:var(--brass-bright);text-align:center;overflow-x:auto;
+}
+.law p{margin:0;color:var(--muted);font-size:.98rem;font-weight:300;}
+.law .key{color:var(--text);}
+
+/* ============================================================
+   DATA TABLE
+   ============================================================ */
+.data-sec{padding:clamp(70px,10vh,130px) 0 clamp(60px,8vh,100px);}
+.table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+table{width:100%;border-collapse:collapse;min-width:620px;}
+caption{text-align:left;color:var(--faint);font-family:var(--mono);font-size:.66rem;letter-spacing:.2em;text-transform:uppercase;padding-bottom:18px;}
+th,td{padding:16px 14px;text-align:right;border-bottom:1px solid var(--hair);font-variant-numeric:tabular-nums;}
+th:first-child,td:first-child{text-align:left;}
+thead th{
+  font-family:var(--mono);font-weight:400;font-size:.64rem;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--brass);border-bottom:1px solid var(--hair-strong);
+}
+tbody td{font-family:var(--mono);font-size:.9rem;color:var(--muted);}
+tbody td.name{font-family:var(--sans);font-size:1rem;color:var(--text);display:flex;align-items:center;gap:11px;}
+tbody tr{transition:background .4s var(--ease);}
+tbody tr:hover{background:rgba(201,168,106,.04);}
+td.err{color:var(--brass-bright);}
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+footer{padding:clamp(70px,9vh,120px) 0 70px;text-align:center;position:relative;z-index:2;}
+footer .mark{font-family:var(--serif);font-size:1.5rem;letter-spacing:.4em;color:var(--text);padding-left:.4em;}
+footer .tagline{font-family:var(--serif);font-style:italic;color:var(--brass);margin-top:6px;}
+footer .makers{margin-top:22px;color:var(--muted);font-size:.92rem;letter-spacing:.02em;}
+footer .makers span{color:var(--brass-bright);font-family:var(--serif);font-style:italic;font-size:1.08rem;letter-spacing:.01em;}
+footer .cite{margin-top:18px;color:var(--faint);font-size:.8rem;line-height:1.8;}
+footer .cite a{color:var(--muted);text-decoration:none;border-bottom:1px solid var(--hair-strong);}
+footer .cite a:hover{color:var(--brass-bright);}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width:880px){
+  .stage{grid-template-columns:1fr;gap:30px;}
+  .law-grid{grid-template-columns:1fr;}
+  .readout{order:2;}
+}
+@media (max-width:560px){
+  .ctl-row{flex-wrap:wrap;gap:14px;}
+  .slider-wrap{order:-1;flex-basis:100%;}   /* slider on its own full-width row */
+  .btn{flex:1;justify-content:center;}        /* play + reset share the next row */
+  .topbar .src{display:none;}                 /* keep the slim header uncluttered */
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms !important;animation-iteration-count:1 !important;}
+  html{scroll-behavior:auto;}
+  .reveal{transition:opacity .4s linear;transform:none;}
+}
+</style>
+</head>
+<body>
+
+<!-- texture + starfield layers -->
+<canvas class="stars" id="stars-far"></canvas>
+<canvas class="stars" id="stars-near"></canvas>
+<div class="grain" aria-hidden="true"></div>
+
+<!-- slim fixed header -->
+<header class="topbar" id="topbar" aria-hidden="true">
+  <span class="mark">ORRERY</span>
+  <span class="label src">Measured against NASA&nbsp;NSSDCA</span>
+</header>
+
+<!-- ============================ HERO ============================ -->
+<section class="hero" id="top">
+  <div class="hero-motif" aria-hidden="true"><svg id="motif" viewBox="-200 -200 400 400"></svg></div>
+  <div class="hero-inner">
+    <span class="label eyebrow">A mechanism for seeing time</span>
+    <h1>ORRERY</h1>
+    <p class="subtitle">A Mechanism for Seeing Time.</p>
+    <p class="premise">Turn one gear a single time and a whole Earth year passes — and as it turns, you watch the inner planets race around at their true relative speeds.</p>
+  </div>
+  <div class="scroll-cue" aria-hidden="true">
+    <span class="caption">Scroll</span>
+    <span class="line"></span>
+  </div>
+</section>
+
+<!-- ====================== INTERACTIVE ORRERY ====================== -->
+<section class="orrery-sec" id="mechanism">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="label">01 — The instrument</span>
+      <h2>Five gears, one year per turn.</h2>
+      <p class="lede">A central fifty-tooth drive gear carries the Sun. Each planet gear is cut with the exact tooth count that makes it spin at that planet's real orbital frequency. Crank the Sun, drag it, or let it run.</p>
+    </div>
+
+    <div class="stage reveal">
+      <div class="orrery-frame">
+        <svg id="orrery" viewBox="-256 -126 430 268" role="img" aria-label="Interactive five-gear orrery">
+          <defs>
+            <radialGradient id="gBrass" cx="38%" cy="32%" r="80%">
+              <stop offset="0%" stop-color="#e8caa0"/>
+              <stop offset="42%" stop-color="#c2a368"/>
+              <stop offset="100%" stop-color="#7c6336"/>
+            </radialGradient>
+            <radialGradient id="gSun" cx="42%" cy="38%" r="75%">
+              <stop offset="0%" stop-color="#fff4dc"/>
+              <stop offset="45%" stop-color="#f0cf8e"/>
+              <stop offset="100%" stop-color="#b6863f"/>
+            </radialGradient>
+            <radialGradient id="gSunGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="rgba(255,228,160,.55)"/>
+              <stop offset="60%" stop-color="rgba(201,168,106,.12)"/>
+              <stop offset="100%" stop-color="rgba(201,168,106,0)"/>
+            </radialGradient>
+            <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDeviation="1.1"/>
+            </filter>
+          </defs>
+          <!-- gear groups injected by JS -->
+        </svg>
+      </div>
+
+      <div class="readout" aria-live="off">
+        <span class="label">Live readout</span>
+        <div class="years"><span id="years">0.00</span></div>
+        <span class="years-unit">Earth years elapsed</span>
+        <hr class="hair"/>
+        <div class="planet-rows" id="rows"><!-- injected --></div>
+        <p class="hint">Orbits = years × (50 ÷ teeth). A planet gear's turn count <em>is</em> its orbit count — that is the whole idea.</p>
+      </div>
+    </div>
+
+    <!-- controls span full width under the stage -->
+    <div class="controls reveal" style="margin-top:clamp(26px,4vw,40px);">
+      <div class="ctl-row">
+        <button class="btn" id="play" aria-label="Play or pause auto-rotation"><span class="ico"></span><span id="playlabel">Play</span></button>
+        <div class="slider-wrap">
+          <div class="caption"><span>Crank the years</span><span id="sliderval">0.00 yr</span></div>
+          <input type="range" id="slider" min="0" max="12" step="0.01" value="0" aria-label="Years elapsed" />
+        </div>
+        <button class="btn" id="reset" aria-label="Reset to year zero">Reset</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================== SIZE VIEW ========================== -->
+<section class="size-sec" id="sizes">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="label">02 — True scale</span>
+      <h2>The same four worlds, at their real relative sizes.</h2>
+      <p class="lede">The gears show <em>time</em>. Here is <em>size</em> — the four model balls at one millimetre to 637 kilometres. Venus and Earth come out as near-perfect twins.</p>
+    </div>
+    <div class="size-stage reveal">
+      <div class="balls" id="balls"><!-- injected --></div>
+      <p class="twins-note">Mercury is a marble; Mars a little larger; <span style="color:var(--text)">Venus and Earth are twins</span>, separated here by less than a millimetre.</p>
+      <div class="sun-note">
+        <span class="glyph" aria-hidden="true"></span>
+        <span>At this same scale the Sun would be <span style="color:var(--text)">2.18&nbsp;metres</span> across — far too large to place beside these, which is why on the board it stands in symbolically at the centre.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================== SCIENCE ========================== -->
+<section class="science-sec" id="science">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="label">03 — The physics</span>
+      <h2>Two laws, meshed together.</h2>
+      <p class="lede">A planet's year is fixed by how far it orbits; a gear's speed is fixed by how many teeth it has. Choose the teeth correctly and one law impersonates the other.</p>
+    </div>
+    <div class="law-grid">
+      <div class="law reveal">
+        <h3>Kepler's Third Law</h3>
+        <div class="eq" data-tex="T^2 \propto a^3"></div>
+        <p>The square of a planet's orbital period <span class="key">T</span> is proportional to the cube of its mean distance <span class="key">a</span> from the Sun. Mercury sits close, so its year is short and it laps the others again and again.</p>
+      </div>
+      <div class="law reveal">
+        <h3>The gear-meshing law</h3>
+        <div class="eq" data-tex="\dfrac{\omega_1}{\omega_2} = \dfrac{N_2}{N_1}"></div>
+        <p>Two meshed gears turn at a ratio set only by their tooth counts <span class="key">N</span>. Drive a planet gear from the fifty-tooth Sun and it spins <span class="key">50 ÷ N</span> times per year — chosen to match that planet's real orbital frequency to under one percent.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================== DATA TABLE ========================== -->
+<section class="data-sec" id="data">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="label">04 — The numbers</span>
+      <h2>Derived from the record.</h2>
+    </div>
+    <div class="table-scroll reveal">
+      <table>
+        <caption>Gear ratios versus NASA NSSDCA orbital periods · drive gear = 50 teeth</caption>
+        <thead>
+          <tr>
+            <th>Planet</th><th>Teeth</th><th>Sidereal period</th><th>Orbits / yr</th><th>Model · 50÷N</th><th>Error</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"><!-- injected --></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ FOOTER ============================ -->
+<footer>
+  <div class="wrap">
+    <hr class="hair" style="margin-bottom:48px"/>
+    <div class="mark">ORRERY</div>
+    <div class="tagline">A Mechanism for Seeing Time.</div>
+    <p class="makers">Designed &amp; built by <span>Miguel Wang</span> · <span>Lucas Chen</span> · <span>Edward Jiang</span></p>
+    <p class="cite">
+      Orbital data: <a href="https://nssdc.gsfc.nasa.gov/planetary/factsheet/" target="_blank" rel="noopener">NASA NSSDCA Planetary Fact Sheet</a>.<br/>
+      A Year&nbsp;11 physics exhibition piece · gear tooth counts derived from real sidereal periods · all errors under one percent.
+    </p>
+  </div>
+</footer>
+
+<script>
+/* ============================================================
+   ORRERY — interactive mechanism
+   All motion is driven from a single state variable `years`.
+   ============================================================ */
+(function(){
+  "use strict";
+
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---- Canonical planet data (do not alter) ----
+     ball = model-ball diameter (mm), dia = real diameter (km) */
+  const PLANETS = [
+    {name:"Mercury", teeth:12, period:87.969,  dia:4879,  ball:8,  color:"var(--mercury)", hex:"#9a8c7d", pos:[0,-62],  angle:-Math.PI/2},  // top
+    {name:"Venus",   teeth:31, period:224.701, dia:12104, ball:19, color:"var(--venus)",   hex:"#d8bd8e", pos:[0, 81],  angle:Math.PI/2},   // bottom
+    {name:"Earth",   teeth:50, period:365.256, dia:12756, ball:20, color:"var(--earth)",   hex:"#6f93a6", pos:[100,0], angle:0},            // right
+    {name:"Mars",    teeth:94, period:686.980, dia:6792,  ball:11, color:"var(--mars)",    hex:"#b56a4c", pos:[-144,0],angle:Math.PI}        // left
+  ];
+  const DRIVE_TEETH = 50;
+  const MODULE = 2;                 // SVG units per tooth-module
+  const YEAR_DAYS = 365.256;
+
+  /* ============================================================
+     1.  Involute spur-gear path generator
+     Returns an SVG path `d` for a gear centred at (0,0),
+     tooth #0 centred on the +x axis (local angle 0).
+     ============================================================ */
+  function gearPath(z, m, paDeg){
+    const pa = (paDeg||20) * Math.PI/180;
+    const rp = m*z/2;                 // pitch radius
+    const rb = rp*Math.cos(pa);       // base radius
+    const ra = rp + m;                // addendum (tip) radius
+    let   rd = rp - 1.25*m;           // dedendum (root) radius
+    if (rd < 0.12*m) rd = 0.12*m;
+    const rStart = Math.max(rb, rd);  // involute begins here
+    const inv = a => Math.tan(a) - a; // involute function
+    const halfTooth = Math.PI/(2*z);  // half tooth angle at pitch circle
+
+    // polar angle of the involute surface (from tooth centreline) at radius r
+    function flank(r){
+      if (r < rb) r = rb;
+      const a = Math.acos(Math.min(1, rb/r));
+      return halfTooth + inv(pa) - inv(a);
+    }
+    const angTip  = flank(ra);
+    const angRoot = flank(rStart);
+    const drop    = rStart > rd + 1e-6;     // is there a gap below base circle?
+    const SF = 6, SA = 3;                   // samples per flank / per arc
+    const pts = [];
+    const P = (ang,r)=>pts.push([Math.cos(ang)*r, Math.sin(ang)*r]);
+
+    for (let k=0;k<z;k++){
+      const c     = 2*Math.PI*k/z;          // this tooth's centre angle
+      const nextC = 2*Math.PI*(k+1)/z;
+      // left flank: root -> tip   (angle = c - flank(r))
+      for (let i=0;i<=SF;i++){ const r=rStart+(ra-rStart)*i/SF; P(c-flank(r), r); }
+      // tip land arc
+      for (let i=1;i<SA;i++){ const a=(c-angTip)+(2*angTip)*i/SA; P(a, ra); }
+      // right flank: tip -> root  (angle = c + flank(r))
+      for (let i=0;i<=SF;i++){ const r=ra-(ra-rStart)*i/SF; P(c+flank(r), r); }
+      // drop to root circle if needed
+      if (drop) P(c+angRoot, rd);
+      // root land arc to next tooth
+      const a0=c+angRoot, a1=nextC-angRoot;
+      for (let i=1;i<SA;i++){ P(a0+(a1-a0)*i/SA, rd); }
+      if (drop) P(a1, rStart);
+    }
+    return "M" + pts.map(p=>p[0].toFixed(2)+","+p[1].toFixed(2)).join("L") + "Z";
+  }
+
+  /* ============================================================
+     2.  Mesh phase — solve once per planet so teeth interlock.
+     Condition: along the line of centres the two surfaces are
+     offset by half a circular pitch (tooth ↔ space), expressed
+     in arc length so it is independent of tooth count.
+     ============================================================ */
+  function meshPhase(zDrive, zFoll, beta){
+    const m = MODULE;
+    const rpD = m*zDrive/2, rpF = m*zFoll/2;
+    const pitchD = 2*Math.PI/zDrive;          // angular tooth pitch (driver)
+    const A = rpD * (((beta % pitchD)+pitchD) % pitchD);   // driver arc phase toward follower
+    // rpF * ((beta+PI - phi0) mod 2pi/zFoll) = p/2 - A   →  solve phi0
+    return (beta + Math.PI) - ( (Math.PI*m/2) - A ) / rpF;
+  }
+
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (n,a)=>{const e=document.createElementNS(NS,n); for(const k in a) e.setAttribute(k,a[k]); return e;};
+
+  /* ============================================================
+     3.  Build a gear group (gear body + hub + spokes + marker)
+     ============================================================ */
+  function buildGear(opts){
+    const {z, cx, cy, fill, isDrive, planet} = opts;
+    const rp = MODULE*z/2;
+    const ra = rp + MODULE;                                           // tip (outer) radius
+    // planet marker size + the radius at which it rides — pushed out near the rim
+    const mr = isDrive ? 0 : Math.max(2, planet.ball*0.32);
+    const markerR = isDrive ? rp*0.6 : (rp - mr - 2);
+    const g = el("g",{transform:`translate(${cx} ${cy})`});           // position
+    const rot = el("g");                                              // <-- rotated each frame
+    g.appendChild(rot);
+
+    // faint orbit ring the marker rides on (stays fixed, not rotated)
+    g.insertBefore(el("circle",{r:markerR, fill:"none", stroke:"rgba(244,241,234,.07)", "stroke-dasharray":"1 4", "stroke-width":.5}), rot);
+
+    // gear body
+    rot.appendChild(el("path",{d:gearPath(z,MODULE,20), fill:fill, stroke:"rgba(255,244,220,.35)", "stroke-width":.4}));
+    // hub
+    rot.appendChild(el("circle",{r:rp*0.28, fill:"rgba(10,12,20,.55)", stroke:"rgba(255,244,220,.25)", "stroke-width":.5}));
+    rot.appendChild(el("circle",{r:rp*0.07, fill:"rgba(255,244,220,.4)"}));
+    // spokes / lightening holes for a machined look
+    const holes = z<=12?0:(z<=31?4:6);
+    for(let i=0;i<holes;i++){
+      const a=2*Math.PI*i/holes, rr=rp*0.44;
+      rot.appendChild(el("circle",{cx:Math.cos(a)*rr, cy:Math.sin(a)*rr, r:rp*0.08, fill:"rgba(10,12,20,.5)", stroke:"rgba(255,244,220,.14)","stroke-width":.4}));
+    }
+
+    if(isDrive){
+      // Sun emblem at centre
+      g.insertBefore(el("circle",{r:rp*0.95, fill:"url(#gSunGlow)"}), rot);
+      const sun = el("g");
+      sun.appendChild(el("circle",{r:rp*0.2, fill:"url(#gSun)", stroke:"rgba(255,236,190,.6)","stroke-width":.5}));
+      for(let i=0;i<12;i++){const a=2*Math.PI*i/12; sun.appendChild(el("line",{x1:Math.cos(a)*rp*0.24,y1:Math.sin(a)*rp*0.24,x2:Math.cos(a)*rp*0.32,y2:Math.sin(a)*rp*0.32,stroke:"rgba(255,228,160,.8)","stroke-width":.7,"stroke-linecap":"round"}));}
+      rot.appendChild(sun);
+      // crank handle (rides with the drive gear)
+      const crank = el("g",{class:"crank", style:"cursor:grab"});
+      crank.appendChild(el("line",{x1:0,y1:0,x2:rp*0.72,y2:0,stroke:"url(#gBrass)","stroke-width":3.4,"stroke-linecap":"round"}));
+      crank.appendChild(el("circle",{cx:rp*0.72,cy:0,r:4.6,fill:"url(#gBrass)",stroke:"rgba(255,244,220,.7)","stroke-width":.6}));
+      crank.appendChild(el("circle",{cx:rp*0.72,cy:0,r:1.6,fill:"rgba(10,12,20,.7)"}));
+      crank.appendChild(el("circle",{cx:rp*0.72,cy:0,r:13,fill:"transparent"})); // generous hit area
+      rot.appendChild(crank);
+    } else {
+      // planet marker riding near the gear rim
+      const mx = markerR;
+      const mk = el("g");
+      mk.appendChild(el("circle",{cx:mx,cy:0,r:mr+2.4,fill:planet.hex,opacity:.18,filter:"url(#soft)"}));
+      const disc = el("circle",{cx:mx,cy:0,r:mr,fill:planet.hex,stroke:"rgba(255,255,255,.35)","stroke-width":.5});
+      mk.appendChild(disc);
+      mk.appendChild(el("circle",{cx:mx-mr*0.32,cy:-mr*0.32,r:mr*0.4,fill:"rgba(255,255,255,.45)"}));
+      rot.appendChild(mk);
+      // small mono label (fixed, not rotated) — always placed OUTSIDE the gear rim,
+      // on the side facing away from the Sun, with a dark halo for legibility
+      const above = cy < -10;                          // top gear → label above it
+      const ly = above ? -(ra+12) : (ra+14);
+      const lbl = el("text",{x:0,y:ly, "text-anchor":"middle",
+        fill:"rgba(244,241,234,.7)", "font-family":"Space Mono, monospace","font-size":6.4,"letter-spacing":.5,
+        stroke:"rgba(7,8,16,.92)","stroke-width":1.8,"paint-order":"stroke","stroke-linejoin":"round"});
+      lbl.textContent = `${planet.name.toUpperCase()} · ${z}T · ${(DRIVE_TEETH/z).toFixed(2)}×`;
+      g.appendChild(lbl);
+    }
+    return {g, rot};
+  }
+
+  /* ============================================================
+     4.  Assemble the mechanism
+     ============================================================ */
+  const svg = document.getElementById("orrery");
+  const gears = [];   // {rot, ratio, phase, dir}
+
+  // planets first (so the drive gear sits on top at the centre)
+  PLANETS.forEach(p=>{
+    const built = buildGear({z:p.teeth, cx:p.pos[0], cy:p.pos[1], fill:"url(#gBrass)", isDrive:false, planet:p});
+    svg.appendChild(built.g);
+    const phase = meshPhase(DRIVE_TEETH, p.teeth, p.angle) * 180/Math.PI;
+    gears.push({rot:built.rot, ratio:DRIVE_TEETH/p.teeth, phase, dir:-1});  // followers counter-rotate
+  });
+  // drive / Sun gear at the centre
+  const drive = buildGear({z:DRIVE_TEETH, cx:0, cy:0, fill:"url(#gSun)", isDrive:true});
+  svg.appendChild(drive.g);
+  const driveGear = {rot:drive.rot, ratio:1, phase:0, dir:1};
+  gears.push(driveGear);
+
+  /* ============================================================
+     5.  Live readout rows + data table + size balls
+     ============================================================ */
+  const rows = document.getElementById("rows");
+  PLANETS.forEach(p=>{
+    const r = document.createElement("div"); r.className="prow";
+    r.innerHTML = `<span class="pn"><span class="dot" style="background:${p.hex};color:${p.hex}"></span>${p.name}</span>`+
+                  `<span class="mult">${(DRIVE_TEETH/p.teeth).toFixed(2)}×</span>`+
+                  `<span class="cnt" data-teeth="${p.teeth}">0.00 <small>orbits</small></span>`;
+    rows.appendChild(r);
+  });
+  const cntEls = [...rows.querySelectorAll(".cnt")];
+
+  // data table
+  const tbody = document.getElementById("tbody");
+  PLANETS.forEach(p=>{
+    const ratio = DRIVE_TEETH/p.teeth;
+    const real  = YEAR_DAYS/p.period;            // true orbits per Earth year
+    const err   = (ratio-real)/real*100;
+    const tr=document.createElement("tr");
+    tr.innerHTML =
+      `<td class="name"><span class="dot" style="background:${p.hex};color:${p.hex}"></span>${p.name}</td>`+
+      `<td>${p.teeth}</td>`+
+      `<td>${p.period.toFixed(3)} d</td>`+
+      `<td>${real.toFixed(3)}</td>`+
+      `<td>${ratio.toFixed(4)}</td>`+
+      `<td class="err">${(err>=0?"+":"")}${err.toFixed(2)}%</td>`;
+    tbody.appendChild(tr);
+  });
+
+  // size balls — scale model-mm up to on-screen px (×6.4 reads well)
+  const ballBox = document.getElementById("balls");
+  const PXPMM = 6.4;
+  PLANETS.forEach(p=>{
+    const col=document.createElement("div"); col.className="ball-col";
+    const d=p.ball*PXPMM;
+    col.innerHTML =
+      `<div class="ball" style="width:${d}px;height:${d}px;background:radial-gradient(circle at 35% 30%, ${p.hex}, ${shade(p.hex,-46)});"></div>`+
+      `<div class="ball-meta"><div class="bn">${p.name}</div><div class="bd">${p.ball} mm · ${p.dia.toLocaleString()} km</div></div>`;
+    ballBox.appendChild(col);
+  });
+  function shade(hex,pct){
+    const n=parseInt(hex.slice(1),16); let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+    const f=pct/100; r=Math.round(r+(pct<0?r:255-r)*f); g=Math.round(g+(pct<0?g:255-g)*f); b=Math.round(b+(pct<0?b:255-b)*f);
+    return `rgb(${r},${g},${b})`;
+  }
+
+  /* ============================================================
+     6.  Animation — single rAF, transforms only (60fps)
+     ============================================================ */
+  let years = 0;                 // master state
+  let playing = !reduceMotion;   // gentle auto-rotate unless reduced motion
+  const AUTO_RATE = 0.42;        // Earth years per second when auto-running
+  const SLIDER_MAX = 12;
+
+  const yearsEl  = document.getElementById("years");
+  const sliderEl = document.getElementById("slider");
+  const sliderVal= document.getElementById("sliderval");
+  const playBtn  = document.getElementById("play");
+  const playLbl  = document.getElementById("playlabel");
+
+  function render(){
+    // rotate every gear: driver +theta, followers -theta*ratio, plus mesh phase
+    const themeDeg = years*360;
+    gears.forEach(g=>{
+      const deg = g.dir*themeDeg*g.ratio + g.phase;
+      g.rot.setAttribute("transform", `rotate(${deg.toFixed(3)})`);
+    });
+    // readouts
+    yearsEl.textContent = years.toFixed(2);
+    cntEls.forEach(c=>{
+      const t=+c.dataset.teeth;
+      c.firstChild.textContent = (years*(DRIVE_TEETH/t)).toFixed(2)+" ";
+    });
+    // slider reflects years (pinned at max if cranked beyond)
+    const sv = Math.min(years, SLIDER_MAX);
+    sliderEl.value = sv;
+    sliderEl.style.setProperty("--fill",(sv/SLIDER_MAX*100)+"%");
+    sliderVal.textContent = years.toFixed(2)+" yr";
+  }
+
+  let last = null;
+  function loop(ts){
+    if(last==null) last=ts;
+    const dt=(ts-last)/1000; last=ts;
+    if(playing && !dragging){
+      years += AUTO_RATE*dt;
+      if(years>999) years=0;          // guard against float drift
+      render();
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  function setPlaying(on){
+    playing=on;
+    playBtn.classList.toggle("playing",on);
+    playLbl.textContent = on?"Pause":"Play";
+    playBtn.setAttribute("aria-pressed",on);
+  }
+  setPlaying(playing);
+
+  /* ---- controls ---- */
+  playBtn.addEventListener("click",()=>setPlaying(!playing));
+  document.getElementById("reset").addEventListener("click",()=>{years=0;setPlaying(false);render();});
+  sliderEl.addEventListener("input",()=>{ setPlaying(false); years=parseFloat(sliderEl.value); render(); });
+
+  /* ---- crank / drag interaction ---- */
+  let dragging=false, lastAng=0;
+  function pivotScreen(){                 // screen-space position of the SVG origin (Sun centre)
+    const m=svg.getScreenCTM();
+    return {x:m.e, y:m.f};                 // origin (0,0) maps to (e,f)
+  }
+  function angleAt(e,pv){ return Math.atan2(e.clientY-pv.y, e.clientX-pv.x); }
+
+  function startDrag(e){
+    dragging=true; svg.classList.add("grabbing");
+    const pv=pivotScreen(); lastAng=angleAt(e,pv);
+    svg.setPointerCapture && e.pointerId!=null && svg.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  }
+  function moveDrag(e){
+    if(!dragging) return;
+    const pv=pivotScreen(); const a=angleAt(e,pv);
+    let d=a-lastAng; if(d>Math.PI)d-=2*Math.PI; if(d<-Math.PI)d+=2*Math.PI;
+    years += d/(2*Math.PI);               // clockwise drag advances time
+    if(years<0) years=0;
+    lastAng=a; render();
+  }
+  function endDrag(){ dragging=false; svg.classList.remove("grabbing"); }
+
+  // drag anywhere on the mechanism, with the crank handle as the obvious grip
+  svg.addEventListener("pointerdown",startDrag);
+  window.addEventListener("pointermove",moveDrag);
+  window.addEventListener("pointerup",endDrag);
+  window.addEventListener("pointercancel",endDrag);
+
+  render();
+
+  /* ============================================================
+     7.  Hero motif — concentric rings + a faint involute gear
+     ============================================================ */
+  (function(){
+    const m=document.getElementById("motif");
+    const ring=(r,o)=>el("circle",{r,cx:0,cy:0,fill:"none",stroke:"rgba(201,168,106,"+o+")","stroke-width":.5});
+    [60,110,160].forEach((r,i)=>m.appendChild(ring(r,.5-i*0.12)));
+    const g=el("g",{class:reduceMotion?"":"spin-slow"});
+    g.appendChild(el("path",{d:gearPath(40,4,20),fill:"none",stroke:"rgba(201,168,106,.55)","stroke-width":.6}));
+    m.appendChild(g);
+    const g2=el("g",{class:reduceMotion?"":"spin-rev"});
+    g2.appendChild(el("path",{d:gearPath(18,4,20),fill:"none",stroke:"rgba(201,168,106,.4)","stroke-width":.6,transform:"translate(0,-160)"}));
+    m.appendChild(g2);
+  })();
+
+  /* ============================================================
+     8.  Starfield (static draw + cheap parallax via transform)
+     ============================================================ */
+  function starfield(canvas, count, maxR, alpha){
+    const ctx=canvas.getContext("2d");
+    let stars=[];
+    function size(){
+      const dpr=Math.min(devicePixelRatio||1,2);
+      canvas.width=innerWidth*dpr; canvas.height=innerHeight*dpr;
+      canvas.style.width=innerWidth+"px"; canvas.style.height=innerHeight+"px";
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      stars=[];
+      for(let i=0;i<count;i++){
+        stars.push({x:Math.random()*innerWidth,y:Math.random()*innerHeight,
+          r:Math.random()*maxR+.2,a:Math.random()*alpha+.05});
+      }
+      draw();
+    }
+    function draw(){
+      ctx.clearRect(0,0,innerWidth,innerHeight);
+      for(const s of stars){
+        ctx.globalAlpha=s.a; ctx.fillStyle="#f4f1ea";
+        ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,7); ctx.fill();
+      }
+      ctx.globalAlpha=1;
+    }
+    addEventListener("resize",size); size();
+  }
+  starfield(document.getElementById("stars-far"),140,1.0,.5);
+  starfield(document.getElementById("stars-near"),70,1.6,.7);
+
+  if(!reduceMotion){
+    let tx=0,ty=0;
+    addEventListener("mousemove",e=>{
+      tx=(e.clientX/innerWidth-.5); ty=(e.clientY/innerHeight-.5);
+    },{passive:true});
+    function par(){
+      const sy=scrollY;
+      document.getElementById("stars-far").style.transform =`translate(${tx*8}px,${ty*8 - sy*0.04}px)`;
+      document.getElementById("stars-near").style.transform=`translate(${tx*20}px,${ty*20 - sy*0.10}px)`;
+      requestAnimationFrame(par);
+    }
+    requestAnimationFrame(par);
+  }
+
+  /* ============================================================
+     9.  Scroll reveals + sticky header
+     ============================================================ */
+  const io=new IntersectionObserver((es)=>{
+    es.forEach(en=>{ if(en.isIntersecting){ en.target.classList.add("in"); io.unobserve(en.target);} });
+  },{threshold:.16});
+  document.querySelectorAll(".reveal").forEach(e=>io.observe(e));
+
+  const topbar=document.getElementById("topbar");
+  const hero=document.getElementById("top");
+  new IntersectionObserver(([e])=>{
+    topbar.classList.toggle("show",!e.isIntersecting);
+  },{threshold:.1}).observe(hero);
+
+  /* ============================================================
+     10.  KaTeX render
+     ============================================================ */
+  window.addEventListener("load",()=>{
+    if(window.katex){
+      document.querySelectorAll(".eq[data-tex]").forEach(n=>{
+        try{ katex.render(n.dataset.tex,n,{throwOnError:false,displayMode:true}); }catch(err){ n.textContent=n.dataset.tex; }
+      });
+    }
+  });
+})();
+</script>
+</body>
+</html>
