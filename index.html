@@ -269,6 +269,27 @@ section{position:relative;z-index:2;}
 /* Controls */
 .controls{margin-top:22px;display:flex;flex-direction:column;gap:18px;}
 .ctl-row{display:flex;align-items:center;gap:18px;}
+
+/* Mechanism / Orbits segmented toggle */
+.viewtoggle{
+  position:relative;align-self:center;display:inline-flex;padding:5px;
+  border:1px solid var(--hair-strong);border-radius:40px;background:var(--ink-2);
+  box-shadow:var(--plate-top);
+}
+.vt-ind{
+  position:absolute;top:5px;left:5px;bottom:5px;width:calc(50% - 5px);border-radius:34px;
+  background:var(--accent-grad);box-shadow:0 2px 12px -4px rgba(201,168,106,.6);
+  transition:transform .55s var(--ease);z-index:0;
+}
+.viewtoggle.orbits .vt-ind{transform:translateX(100%);}
+.vt-btn{
+  position:relative;z-index:1;appearance:none;border:0;background:transparent;cursor:pointer;
+  font-family:var(--mono);font-size:.68rem;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--muted);padding:11px 26px;border-radius:34px;transition:color .4s var(--ease);
+  white-space:nowrap;
+}
+.vt-btn.is-active{color:#1a130a;}
+.vt-btn:focus-visible{outline:2px solid var(--brass);outline-offset:3px;}
 .btn{
   appearance:none;border:1px solid var(--hair-strong);background:var(--ink-2);
   color:var(--text);font-family:var(--mono);font-size:.72rem;letter-spacing:.18em;
@@ -335,8 +356,8 @@ input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;bor
 }
 .balls{display:flex;align-items:flex-end;justify-content:center;gap:clamp(26px,7vw,90px);flex-wrap:wrap;width:100%;}
 .ball-col{display:flex;flex-direction:column;align-items:center;gap:18px;}
-.ball{border-radius:50%;position:relative;box-shadow:inset -8px -8px 24px rgba(0,0,0,.55),0 18px 50px -20px rgba(0,0,0,.9);}
-.ball::after{content:"";position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.5),transparent 42%);opacity:.5;}
+.ball{border-radius:50%;position:relative;line-height:0;box-shadow:0 18px 50px -20px rgba(0,0,0,.9);}
+.ball svg{display:block;border-radius:50%;}
 .ball-meta{text-align:center;}
 .ball-meta .bn{font-family:var(--serif);font-size:1.25rem;color:var(--text);font-weight:500;}
 .ball-meta .bd{font-family:var(--mono);font-size:.68rem;letter-spacing:.16em;color:var(--faint);text-transform:uppercase;margin-top:3px;}
@@ -432,6 +453,8 @@ footer .cite a:hover{color:var(--brass-bright);}
   .ctl-row{flex-wrap:wrap;gap:14px;}
   .slider-wrap{order:-1;flex-basis:100%;}   /* slider on its own full-width row */
   .btn{flex:1;justify-content:center;}        /* play + reset share the next row */
+  .viewtoggle{width:100%;align-self:stretch;}
+  .vt-btn{flex:1;padding:12px 8px;text-align:center;}
   .topbar .src,.topbar .sep{display:none;}    /* keep the slim header uncluttered; source link stays */
 
   /* data table: tighten so more columns show, and reveal the swipe affordance */
@@ -510,7 +533,7 @@ footer .cite a:hover{color:var(--brass-bright);}
     <div class="sec-head reveal">
       <span class="label">01 · The instrument</span>
       <h2>Five gears, one year per turn.</h2>
-      <p class="lede">A central fifty-tooth drive gear carries the Sun. Each planet gear is cut with the exact tooth count that makes it spin at that planet's real orbital frequency. Crank the Sun, drag it, or let it run.</p>
+      <p class="lede">A central fifty-tooth drive gear carries the Sun. Each planet gear is cut with the exact tooth count that makes it spin at that planet's real orbital frequency. Crank the Sun, drag it, or let it run, then switch to <em>Orbits</em> to watch the very same motion as a living solar system.</p>
     </div>
 
     <div class="stage reveal">
@@ -535,8 +558,22 @@ footer .cite a:hover{color:var(--brass-bright);}
             <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
               <feGaussianBlur stdDeviation="1.1"/>
             </filter>
+            <!-- sphere shading + specular highlight for the stylised planets -->
+            <radialGradient id="sphereShade" cx="34%" cy="30%" r="72%">
+              <stop offset="0" stop-color="#05060a" stop-opacity="0"/>
+              <stop offset="56%" stop-color="#05060a" stop-opacity="0"/>
+              <stop offset="100%" stop-color="#05060a" stop-opacity="0.62"/>
+            </radialGradient>
+            <radialGradient id="spec" cx="50%" cy="50%" r="50%">
+              <stop offset="0" stop-color="#ffffff" stop-opacity="0.42"/>
+              <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+            </radialGradient>
           </defs>
-          <!-- gear groups injected by JS -->
+          <!-- layers injected / populated by JS (back to front) -->
+          <g id="orbitLayer" opacity="0"></g>
+          <g id="gearLayer"></g>
+          <g id="sun"></g>
+          <g id="planetLayer"></g>
         </svg>
       </div>
 
@@ -552,6 +589,11 @@ footer .cite a:hover{color:var(--brass-bright);}
 
     <!-- controls span full width under the stage -->
     <div class="controls reveal" style="margin-top:clamp(26px,4vw,40px);">
+      <div class="viewtoggle" role="tablist" aria-label="Centerpiece view">
+        <span class="vt-ind" aria-hidden="true"></span>
+        <button class="vt-btn is-active" id="viewGears" role="tab" aria-selected="true">Mechanism</button>
+        <button class="vt-btn" id="viewOrbits" role="tab" aria-selected="false">Orbits</button>
+      </div>
       <div class="ctl-row">
         <button class="btn" id="play" aria-label="Play or pause auto-rotation"><span class="ico"></span><span id="playlabel">Play</span></button>
         <div class="slider-wrap">
@@ -738,6 +780,55 @@ footer .cite a:hover{color:var(--brass-bright);}
   const el = (n,a)=>{const e=document.createElementNS(NS,n); for(const k in a) e.setAttribute(k,a[k]); return e;};
 
   /* ============================================================
+     Stylised, recognisable planet disc (self-contained SVG,
+     muted palette). Returns a <g> of radius r centred at (0,0).
+     Reused by the size view and the orbit view.
+     ============================================================ */
+  let _pcid = 0;
+  function planetSphere(name, r){
+    const defs = document.querySelector("#orrery defs");
+    const id = "pclip"+(_pcid++);
+    const cp = el("clipPath",{id}); cp.appendChild(el("circle",{cx:0,cy:0,r:r})); defs.appendChild(cp);
+    const g = el("g");
+    const body = el("g",{"clip-path":`url(#${id})`});
+    const add=(t,a)=>body.appendChild(el(t,a));
+    const ell=(cx,cy,rx,ry,fill,op,rot)=>add("ellipse",{cx:cx*r,cy:cy*r,rx:rx*r,ry:ry*r,fill,opacity:op,...(rot?{transform:`rotate(${rot} ${cx*r} ${cy*r})`}:{})});
+    const cir=(cx,cy,rr,fill,op)=>add("circle",{cx:cx*r,cy:cy*r,r:rr*r,fill,opacity:op});
+    if(name==="Earth"){
+      cir(0,0,1,"#34576b",1);                                   // ocean
+      ell(0.14,-0.10,0.40,0.54,"#6f7e52",0.95,24);              // Afro-Eurasia
+      ell(-0.44,0.16,0.24,0.46,"#717f54",0.92,-14);             // Americas
+      ell(0.36,0.42,0.20,0.15,"#7c8456",0.9,0);                 // Oceania
+      ell(0,-0.93,0.5,0.13,"#e9eff1",0.4,0);                    // N ice
+      ell(0,0.96,0.42,0.11,"#e9eff1",0.36,0);                   // S ice
+      ell(-0.12,-0.36,0.56,0.13,"#ffffff",0.15,18);             // cloud
+      ell(0.22,0.30,0.5,0.12,"#ffffff",0.13,-12);               // cloud
+    } else if(name==="Mars"){
+      cir(0,0,1,"#b06a4c",1);
+      ell(0.18,0.05,0.34,0.28,"#8a4a33",0.5,15);                // maria
+      ell(-0.30,0.24,0.22,0.18,"#8a4a33",0.45,0);
+      ell(0,-0.88,0.32,0.14,"#f1ede5",0.85,0);                  // polar cap
+      ell(-0.04,0.9,0.2,0.08,"#e7ddd1",0.5,0);
+    } else if(name==="Venus"){
+      cir(0,0,1,"#d8bd8e",1);
+      ell(0,-0.32,0.95,0.20,"#e8d3a4",0.5,-8);                  // cloud bands
+      ell(0.10,0.06,0.98,0.22,"#c7a873",0.45,-8);
+      ell(-0.10,0.42,0.9,0.18,"#e8d3a4",0.4,-8);
+    } else {                                                    // Mercury
+      cir(0,0,1,"#9a8c7d",1);
+      [[-0.20,-0.20,0.16],[0.30,0.06,0.12],[0.05,0.36,0.14],[-0.36,0.26,0.10],[0.26,-0.34,0.09]]
+        .forEach(c=>cir(c[0],c[1],c[2],"#7c7064",0.5));
+      cir(-0.15,-0.16,0.06,"#b1a596",0.4);
+    }
+    // sphericity + specular highlight (clipped to the disc)
+    add("circle",{cx:0,cy:0,r:r,fill:"url(#sphereShade)"});
+    add("circle",{cx:-r*0.3,cy:-r*0.34,r:r*0.62,fill:"url(#spec)"});
+    g.appendChild(body);
+    g.appendChild(el("circle",{cx:0,cy:0,r:r,fill:"none",stroke:"rgba(0,0,0,.22)","stroke-width":Math.max(0.4,r*0.02)}));
+    return g;
+  }
+
+  /* ============================================================
      3.  Build a gear group (gear body + hub + spokes + marker)
      ============================================================ */
   function buildGear(opts){
@@ -767,13 +858,7 @@ footer .cite a:hover{color:var(--brass-bright);}
     }
 
     if(isDrive){
-      // Sun emblem at centre
-      g.insertBefore(el("circle",{r:rp*0.95, fill:"url(#gSunGlow)"}), rot);
-      const sun = el("g");
-      sun.appendChild(el("circle",{r:rp*0.2, fill:"url(#gSun)", stroke:"rgba(255,236,190,.6)","stroke-width":.5}));
-      for(let i=0;i<12;i++){const a=2*Math.PI*i/12; sun.appendChild(el("line",{x1:Math.cos(a)*rp*0.24,y1:Math.sin(a)*rp*0.24,x2:Math.cos(a)*rp*0.32,y2:Math.sin(a)*rp*0.32,stroke:"rgba(255,228,160,.8)","stroke-width":.7,"stroke-linecap":"round"}));}
-      rot.appendChild(sun);
-      // crank handle (rides with the drive gear)
+      // crank handle (rides with the drive gear; the Sun itself is a shared layer)
       const crank = el("g",{class:"crank", style:"cursor:grab"});
       crank.appendChild(el("line",{x1:0,y1:0,x2:rp*0.72,y2:0,stroke:"url(#gBrass)","stroke-width":3.4,"stroke-linecap":"round"}));
       crank.appendChild(el("circle",{cx:rp*0.72,cy:0,r:4.6,fill:"url(#gBrass)",stroke:"rgba(255,244,220,.7)","stroke-width":.6}));
@@ -781,14 +866,7 @@ footer .cite a:hover{color:var(--brass-bright);}
       crank.appendChild(el("circle",{cx:rp*0.72,cy:0,r:13,fill:"transparent"})); // generous hit area
       rot.appendChild(crank);
     } else {
-      // planet marker riding near the gear rim
-      const mx = markerR;
-      const mk = el("g");
-      mk.appendChild(el("circle",{cx:mx,cy:0,r:mr+2.4,fill:planet.hex,opacity:.18,filter:"url(#soft)"}));
-      const disc = el("circle",{cx:mx,cy:0,r:mr,fill:planet.hex,stroke:"rgba(255,255,255,.35)","stroke-width":.5});
-      mk.appendChild(disc);
-      mk.appendChild(el("circle",{cx:mx-mr*0.32,cy:-mr*0.32,r:mr*0.4,fill:"rgba(255,255,255,.45)"}));
-      rot.appendChild(mk);
+      // (planet disc now lives in the shared #planetLayer so it can morph to orbit)
       // small mono label (fixed, not rotated): always placed OUTSIDE the gear rim,
       // on the side facing away from the Sun, with a dark halo for legibility
       const above = cy < -10;                          // top gear → label above it
@@ -806,20 +884,68 @@ footer .cite a:hover{color:var(--brass-bright);}
      4.  Assemble the mechanism
      ============================================================ */
   const svg = document.getElementById("orrery");
-  const gears = [];   // {rot, ratio, phase, dir}
+  const gearLayer  = document.getElementById("gearLayer");
+  const orbitLayer = document.getElementById("orbitLayer");
+  const sunLayer   = document.getElementById("sun");
+  const planetLayer= document.getElementById("planetLayer");
+  const gears = [];        // {rot, ratio, phase, dir} -> gear rotations (drives #gearLayer)
+  const planetView = [];   // per-planet data shared by both views (the morph)
 
-  // planets first (so the drive gear sits on top at the centre)
+  const ORBIT_R = {Mercury:46, Venus:72, Earth:100, Mars:134};   // aesthetic, monotonic
+  const TRAIL_N = 16;
+
+  // ---- gear bodies into #gearLayer ----
   PLANETS.forEach(p=>{
     const built = buildGear({z:p.teeth, cx:p.pos[0], cy:p.pos[1], fill:"url(#gBrass)", isDrive:false, planet:p});
-    svg.appendChild(built.g);
-    const phase = meshPhase(DRIVE_TEETH, p.teeth, p.angle) * 180/Math.PI;
-    gears.push({rot:built.rot, ratio:DRIVE_TEETH/p.teeth, phase, dir:-1});  // followers counter-rotate
+    gearLayer.appendChild(built.g);
+    const phaseDeg = meshPhase(DRIVE_TEETH, p.teeth, p.angle) * 180/Math.PI;
+    gears.push({rot:built.rot, ratio:DRIVE_TEETH/p.teeth, phase:phaseDeg, dir:-1});  // followers counter-rotate
   });
-  // drive / Sun gear at the centre
   const drive = buildGear({z:DRIVE_TEETH, cx:0, cy:0, fill:"url(#gSun)", isDrive:true});
-  svg.appendChild(drive.g);
-  const driveGear = {rot:drive.rot, ratio:1, phase:0, dir:1};
-  gears.push(driveGear);
+  gearLayer.appendChild(drive.g);
+  gears.push({rot:drive.rot, ratio:1, phase:0, dir:1});
+
+  // ---- shared Sun (anchor in both views) ----
+  sunLayer.appendChild(el("circle",{r:40, fill:"url(#gSunGlow)"}));
+  const sunCore = el("g");
+  sunCore.appendChild(el("circle",{r:9, fill:"url(#gSun)", stroke:"rgba(255,236,190,.6)","stroke-width":.6}));
+  for(let i=0;i<12;i++){const a=2*Math.PI*i/12; sunCore.appendChild(el("line",{x1:Math.cos(a)*11,y1:Math.sin(a)*11,x2:Math.cos(a)*15,y2:Math.sin(a)*15,stroke:"rgba(255,228,160,.85)","stroke-width":.8,"stroke-linecap":"round"}));}
+  sunLayer.appendChild(sunCore);
+
+  // ---- orbit rings + trails + labels, and the shared planet discs ----
+  PLANETS.forEach(p=>{
+    const ratio = DRIVE_TEETH/p.teeth;
+    const ro = ORBIT_R[p.name];
+    const rp = MODULE*p.teeth/2;
+    const mr = Math.max(2, p.ball*0.32);
+    const markerR = rp - mr - 2;                         // where the disc rides on the gear
+    const discR = Math.max(3.2, Math.min(8, p.ball*0.42));
+    const phaseRad = meshPhase(DRIVE_TEETH, p.teeth, p.angle);
+
+    // orbit ring (faint, tinted with the planet colour)
+    orbitLayer.appendChild(el("circle",{cx:0,cy:0,r:ro, fill:"none", stroke:p.hex, "stroke-opacity":.24, "stroke-width":.8}));
+    orbitLayer.appendChild(el("circle",{cx:0,cy:0,r:ro, fill:"none", stroke:"rgba(244,241,234,.05)", "stroke-width":.4}));
+
+    // comet trail (segments fade from the planet backward; updated each frame)
+    const trail = el("g"); const segs=[];
+    for(let i=0;i<TRAIL_N;i++){ const s=el("line",{stroke:p.hex,"stroke-linecap":"round","stroke-width":(discR*0.9*(1-i/TRAIL_N)+0.3).toFixed(2), opacity:0}); trail.appendChild(s); segs.push(s); }
+    orbitLayer.appendChild(trail);
+
+    // faint static label at the top of each ring
+    const olbl=el("text",{x:0,y:-ro-4,"text-anchor":"middle",fill:"rgba(244,241,234,.6)","font-family":"Space Mono, monospace","font-size":6,"letter-spacing":.5,stroke:"rgba(7,8,16,.92)","stroke-width":1.6,"paint-order":"stroke","stroke-linejoin":"round",opacity:0});
+    olbl.textContent=p.name.toUpperCase();
+    orbitLayer.appendChild(olbl);
+
+    // the shared planet disc (morphs between gear rim and orbit) + soft glow
+    const disc = el("g");
+    const glow = el("circle",{r:discR*1.8, fill:p.hex, opacity:0, filter:"url(#soft)"});
+    disc.appendChild(glow);
+    disc.appendChild(planetSphere(p.name, discR));
+    planetLayer.appendChild(disc);
+
+    planetView.push({ratio, ro, markerR, discR, dir:-1, phaseRad,
+      gx:p.pos[0], gy:p.pos[1], disc, glow, segs, olbl, trailAngle:Math.min(0.35+ratio*0.42,2.5)});
+  });
 
   /* ============================================================
      5.  Live readout rows + data table + size balls
@@ -857,16 +983,15 @@ footer .cite a:hover{color:var(--brass-bright);}
   PLANETS.forEach(p=>{
     const col=document.createElement("div"); col.className="ball-col";
     const d=p.ball*PXPMM;
-    col.innerHTML =
-      `<div class="ball" style="width:${d}px;height:${d}px;background:radial-gradient(circle at 35% 30%, ${p.hex}, ${shade(p.hex,-46)});"></div>`+
-      `<div class="ball-meta"><div class="bn">${p.name}</div><div class="bd">${p.ball} mm · ${p.dia.toLocaleString()} km</div></div>`;
+    const ball=document.createElement("div"); ball.className="ball"; ball.style.width=d+"px"; ball.style.height=d+"px";
+    const psvg=el("svg",{viewBox:`${-d/2} ${-d/2} ${d} ${d}`, width:d, height:d});
+    psvg.appendChild(planetSphere(p.name, d/2*0.985));
+    ball.appendChild(psvg);
+    const meta=document.createElement("div"); meta.className="ball-meta";
+    meta.innerHTML=`<div class="bn">${p.name}</div><div class="bd">${p.ball} mm · ${p.dia.toLocaleString()} km</div>`;
+    col.appendChild(ball); col.appendChild(meta);
     ballBox.appendChild(col);
   });
-  function shade(hex,pct){
-    const n=parseInt(hex.slice(1),16); let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
-    const f=pct/100; r=Math.round(r+(pct<0?r:255-r)*f); g=Math.round(g+(pct<0?g:255-g)*f); b=Math.round(b+(pct<0?b:255-b)*f);
-    return `rgb(${r},${g},${b})`;
-  }
 
   /* ============================================================
      6.  Animation: single rAF, transforms only (60fps)
@@ -881,6 +1006,12 @@ footer .cite a:hover{color:var(--brass-bright);}
   const sliderVal= document.getElementById("sliderval");
   const playBtn  = document.getElementById("play");
   const playLbl  = document.getElementById("playlabel");
+
+  // ---- view morph: 0 = mechanism (gears), 1 = orbits ----
+  const GEAR_VB=[-256,-126,430,268], ORBIT_VB=[-150,-150,300,300];
+  let morph=0, morphTarget=0, lastM=-1;
+  const lerp=(a,b,t)=>a+(b-a)*t;
+  const TWO_PI=Math.PI*2;
 
   function render(){
     // rotate every gear: driver +theta, followers -theta*ratio, plus mesh phase
@@ -900,20 +1031,76 @@ footer .cite a:hover{color:var(--brass-bright);}
     sliderEl.value = sv;
     sliderEl.style.setProperty("--fill",(sv/SLIDER_MAX*100)+"%");
     sliderVal.textContent = years.toFixed(2)+" yr";
+
+    // ---- morph: planets glide gear<->orbit, trails, layer crossfade, camera ----
+    const m=morph, em = m*m*(3-2*m);                 // smoothstep for the spatial blend
+    if(m!==lastM){                                   // viewBox + crossfade only while morphing
+      gearLayer.setAttribute("opacity",(1-m).toFixed(3));
+      orbitLayer.setAttribute("opacity", m.toFixed(3));
+      const vb=GEAR_VB.map((g,i)=>lerp(g,ORBIT_VB[i],em));
+      svg.setAttribute("viewBox", vb.map(n=>n.toFixed(1)).join(" "));
+      lastM=m;
+    }
+    planetView.forEach(v=>{
+      const ag = v.dir*years*TWO_PI*v.ratio + v.phaseRad;          // gear-marker world angle
+      const Gx=v.gx+v.markerR*Math.cos(ag), Gy=v.gy+v.markerR*Math.sin(ag);
+      const ao = -years*TWO_PI*v.ratio;                            // orbital angle (CCW)
+      const Ox=v.ro*Math.cos(ao), Oy=v.ro*Math.sin(ao);
+      const x=lerp(Gx,Ox,em), y=lerp(Gy,Oy,em);
+      v.disc.setAttribute("transform",`translate(${x.toFixed(2)} ${y.toFixed(2)})`);
+      if(m>0.012){
+        const n=v.segs.length, dth=v.trailAngle/n;
+        for(let i=0;i<n;i++){
+          const a1=ao+i*dth, a2=ao+(i+1)*dth;
+          v.segs[i].setAttribute("x1",(v.ro*Math.cos(a1)).toFixed(2));
+          v.segs[i].setAttribute("y1",(v.ro*Math.sin(a1)).toFixed(2));
+          v.segs[i].setAttribute("x2",(v.ro*Math.cos(a2)).toFixed(2));
+          v.segs[i].setAttribute("y2",(v.ro*Math.sin(a2)).toFixed(2));
+          v.segs[i].setAttribute("opacity",((1-i/n)*0.72*m).toFixed(3));
+        }
+      } else { for(const s of v.segs) s.setAttribute("opacity","0"); }
+      v.glow.setAttribute("opacity",(m*0.3).toFixed(3));
+      v.olbl.setAttribute("opacity",(m*0.6).toFixed(3));
+    });
   }
 
   let last = null;
   function loop(ts){
     if(last==null) last=ts;
     const dt=(ts-last)/1000; last=ts;
+    let need=false;
     if(playing && !dragging){
       years += AUTO_RATE*dt;
       if(years>999) years=0;          // guard against float drift
-      render();
+      need=true;
     }
+    if(morph!==morphTarget){          // ease the view morph (~850ms) even when paused
+      const step=dt/0.85;
+      morph = morph<morphTarget ? Math.min(morphTarget,morph+step) : Math.max(morphTarget,morph-step);
+      need=true;
+    }
+    if(need) render();
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);
+
+  /* ---- Mechanism / Orbits toggle ---- */
+  const viewToggle=document.querySelector(".viewtoggle");
+  const gearsBtn=document.getElementById("viewGears");
+  const orbitsBtn=document.getElementById("viewOrbits");
+  function setView(orbits){
+    morphTarget = orbits?1:0;
+    if(reduceMotion){ morph=morphTarget; }
+    viewToggle.classList.toggle("orbits",orbits);
+    gearsBtn.classList.toggle("is-active",!orbits);  orbitsBtn.classList.toggle("is-active",orbits);
+    gearsBtn.setAttribute("aria-selected",String(!orbits));
+    orbitsBtn.setAttribute("aria-selected",String(orbits));
+    render();
+  }
+  gearsBtn.addEventListener("click",()=>setView(false));
+  orbitsBtn.addEventListener("click",()=>setView(true));
+  // deep link: open straight into the orbits view (handy for sharing / a QR variant)
+  if(/orbits/i.test(location.hash+location.search)) setView(true);
 
   function setPlaying(on){
     playing=on;
