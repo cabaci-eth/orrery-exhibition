@@ -369,7 +369,17 @@ input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;bor
    DATA TABLE
    ============================================================ */
 .data-sec{padding:clamp(70px,10vh,130px) 0 clamp(60px,8vh,100px);}
+.table-frame{position:relative;}
 .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.swipe-hint{display:none;}
+/* right-edge fade + swipe hint appear only when the table actually scrolls (mobile) */
+.table-frame::after{
+  content:"";position:absolute;top:0;right:0;bottom:0;width:46px;pointer-events:none;
+  background:linear-gradient(to right,rgba(10,12,20,0),var(--ink-0) 85%);
+  opacity:0;transition:opacity .35s var(--ease);
+}
+.table-frame.is-scrollable::after{opacity:1;}
+.table-frame.at-end::after{opacity:0;}
 table{width:100%;border-collapse:collapse;min-width:620px;}
 caption{text-align:left;color:var(--faint);font-family:var(--mono);font-size:.66rem;letter-spacing:.2em;text-transform:uppercase;padding-bottom:18px;}
 th,td{padding:16px 14px;text-align:right;border-bottom:1px solid var(--hair);font-variant-numeric:tabular-nums;}
@@ -423,6 +433,26 @@ footer .cite a:hover{color:var(--brass-bright);}
   .slider-wrap{order:-1;flex-basis:100%;}   /* slider on its own full-width row */
   .btn{flex:1;justify-content:center;}        /* play + reset share the next row */
   .topbar .src,.topbar .sep{display:none;}    /* keep the slim header uncluttered; source link stays */
+
+  /* data table: tighten so more columns show, and reveal the swipe affordance */
+  table{min-width:540px;}
+  th,td{padding:13px 10px;}
+  tbody td{font-size:.8rem;}
+  tbody td.name{font-size:.9rem;gap:8px;}
+  thead th{font-size:.56rem;letter-spacing:.1em;}
+  .swipe-hint{
+    display:block;margin-top:14px;text-align:right;
+    font-family:var(--mono);font-size:.6rem;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--brass);opacity:.85;transition:opacity .35s var(--ease);
+  }
+  .table-frame.at-end .swipe-hint{opacity:0;}
+  .table-frame:not(.is-scrollable) .swipe-hint{display:none;}
+}
+
+/* narrow phones: shrink the display title so it (and the hero column) fit cleanly */
+@media (max-width:380px){
+  .hero h1{font-size:clamp(2.9rem,15vw,4.2rem);letter-spacing:.04em;margin-left:0;}
+  .hero .byline{letter-spacing:.18em;}
 }
 
 /* keep the hero byline clear of the scroll cue on shorter screens */
@@ -583,16 +613,19 @@ footer .cite a:hover{color:var(--brass-bright);}
       <span class="label">04 · The numbers</span>
       <h2>Derived from the record.</h2>
     </div>
-    <div class="table-scroll reveal">
-      <table>
-        <caption>Gear ratios versus NASA NSSDCA orbital periods · drive gear = 50 teeth</caption>
-        <thead>
-          <tr>
-            <th>Planet</th><th>Teeth</th><th>Sidereal period</th><th>Orbits / yr</th><th>Model · 50÷N</th><th>Error</th>
-          </tr>
-        </thead>
-        <tbody id="tbody"><!-- injected --></tbody>
-      </table>
+    <div class="table-frame reveal">
+      <div class="table-scroll" id="tableScroll">
+        <table>
+          <caption>Gear ratios versus NASA NSSDCA orbital periods · drive gear = 50 teeth</caption>
+          <thead>
+            <tr>
+              <th>Planet</th><th>Teeth</th><th>Sidereal period</th><th>Orbits / yr</th><th>Model · 50÷N</th><th>Error</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"><!-- injected --></tbody>
+        </table>
+      </div>
+      <span class="swipe-hint" aria-hidden="true">Swipe for model &amp; error →</span>
     </div>
   </div>
 </section>
@@ -1000,6 +1033,18 @@ footer .cite a:hover{color:var(--brass-bright);}
   new IntersectionObserver(([e])=>{
     topbar.classList.toggle("show",!e.isIntersecting);
   },{threshold:.1}).observe(hero);
+
+  /* data table: show the fade + swipe hint only while there is more to scroll */
+  const tScroll=document.getElementById("tableScroll");
+  const tFrame=tScroll && tScroll.closest(".table-frame");
+  function updTable(){
+    if(!tScroll||!tFrame) return;
+    const scrollable = tScroll.scrollWidth > tScroll.clientWidth + 2;
+    const atEnd = tScroll.scrollLeft + tScroll.clientWidth >= tScroll.scrollWidth - 2;
+    tFrame.classList.toggle("is-scrollable", scrollable);
+    tFrame.classList.toggle("at-end", !scrollable || atEnd);
+  }
+  if(tScroll){ tScroll.addEventListener("scroll",updTable,{passive:true}); window.addEventListener("resize",updTable); updTable(); }
 
   /* ============================================================
      10.  KaTeX render
