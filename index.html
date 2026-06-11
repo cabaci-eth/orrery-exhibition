@@ -305,6 +305,7 @@ section{position:relative;z-index:2;}
 .btn .ico{width:9px;height:11px;display:inline-block;position:relative;}
 .btn .ico::before{content:"";position:absolute;inset:0;border-style:solid;border-width:5.5px 0 5.5px 9px;border-color:transparent transparent transparent currentColor;}
 .btn.playing .ico::before{border-width:0;width:3px;height:11px;background:currentColor;box-shadow:6px 0 0 currentColor;border:0;}
+.btn.running{border-color:var(--brass);color:var(--brass-bright);background:rgba(201,168,106,.08);pointer-events:none;}
 
 /* Range slider */
 .slider-wrap{flex:1;display:flex;flex-direction:column;gap:8px;min-width:0;}
@@ -609,7 +610,7 @@ footer .cite a:hover{color:var(--brass-bright);}
         <hr class="hair"/>
         <div class="planet-rows" id="rows"><!-- injected --></div>
         <div class="focus-info" id="focusInfo" hidden></div>
-        <p class="hint" id="readoutHint">Orbits = years × (50 ÷ teeth). A planet gear's turn count <em>is</em> its orbit count. <span class="tap-cue">Tap any planet to focus it.</span></p>
+        <p class="hint" id="readoutHint">Orbits = years × (50 ÷ teeth). A planet gear's turn count <em>is</em> its orbit count. <span class="tap-cue">Tap any planet to focus it.</span> In the Orbits view, a brass flare marks each moment a planet lines up with Earth and the Sun.</p>
       </div>
     </div>
 
@@ -617,6 +618,7 @@ footer .cite a:hover{color:var(--brass-bright);}
     <div class="controls reveal" style="margin-top:clamp(22px,3vw,32px);">
       <div class="ctl-row">
         <button class="btn" id="play" aria-label="Play or pause auto-rotation"><span class="ico"></span><span id="playlabel">Play</span></button>
+        <button class="btn" id="oneyear" aria-label="Advance exactly one Earth year">One year</button>
         <div class="slider-wrap">
           <div class="caption"><span>Crank the years</span><span id="sliderval">0.00 yr</span></div>
           <input type="range" id="slider" min="0" max="12" step="0.01" value="0" aria-label="Years elapsed" />
@@ -971,9 +973,31 @@ footer .cite a:hover{color:var(--brass-bright);}
 
     planetView.push({p, ratio, ro, markerR, discR, dir:-1, phaseRad,
       gx:p.pos[0], gy:p.pos[1], disc, glow, segs, olbl, ringEl, focusHalo,
-      gearGroup:gearGroupByName[p.name], focusFactor:1,
+      gearGroup:gearGroupByName[p.name], focusFactor:1, flash:0,
       trailAngle:Math.min(0.35+ratio*0.42,2.5)});
   });
+
+  // ---- alignment flares: fired when a planet shares heliocentric longitude with
+  // Earth (an inferior conjunction for Mercury/Venus, an opposition for Mars).
+  // Lives inside #orbitLayer so it crossfades with the orbits view automatically.
+  const fxLayer = el("g",{"aria-hidden":"true"});
+  orbitLayer.appendChild(fxLayer);
+  const earthV = planetView.find(v=>v.p.name==="Earth");
+  const conjPairs = planetView.filter(v=>v!==earthV).map(v=>({v, k:v.ratio-1}));
+  const sparks = [];
+  function spawnSpark(v){
+    const th=-years*TWO_PI, cos=Math.cos(th), sin=Math.sin(th);
+    const rOut=Math.max(v.ro, earthV.ro);
+    const g=el("g");
+    const ray=el("line",{x1:cos*16,y1:sin*16,x2:cos*(rOut+12),y2:sin*(rOut+12),
+      stroke:"#ecd2a0","stroke-width":.7,"stroke-linecap":"round"});
+    const ring1=el("circle",{cx:cos*earthV.ro,cy:sin*earthV.ro,fill:"none",stroke:earthV.p.hex,"stroke-width":1});
+    const ring2=el("circle",{cx:cos*v.ro,cy:sin*v.ro,fill:"none",stroke:v.p.hex,"stroke-width":1});
+    g.appendChild(ray); g.appendChild(ring1); g.appendChild(ring2);
+    fxLayer.appendChild(g);
+    sparks.push({g,ray,ring1,ring2,t:0,dur:1.05,d1:earthV.discR,d2:v.discR});
+    v.flash=0.8; earthV.flash=0.8;
+  }
 
   /* ============================================================
      5.  Live readout rows + data table + size balls
@@ -1026,6 +1050,7 @@ footer .cite a:hover{color:var(--brass-bright);}
      6.  Animation: single rAF, transforms only (60fps)
      ============================================================ */
   let years = 0;                 // master state
+  let yearRun = null;            // active "One year" demonstration run
   let playing = !reduceMotion;   // gentle auto-rotate unless reduced motion
   const AUTO_RATE = 0.42;        // Earth years per second when auto-running
   const SLIDER_MAX = 12;
@@ -1038,7 +1063,7 @@ footer .cite a:hover{color:var(--brass-bright);}
 
   // ---- view morph: 0 = mechanism (gears), 1 = orbits ----
   const GEAR_VB=[-256,-126,430,268], ORBIT_VB=[-150,-150,300,300];
-  let morph=0, morphTarget=0, lastM=-1;
+  let morph=0, morphTarget=0, lastM=-1, prevYears=0;
   const lerp=(a,b,t)=>a+(b-a)*t;
   const TWO_PI=Math.PI*2;
 
@@ -1088,9 +1113,18 @@ footer .cite a:hover{color:var(--brass-bright);}
           v.segs[i].setAttribute("opacity",((1-i/n)*0.72*m*v.focusFactor).toFixed(3));
         }
       } else { for(const s of v.segs) s.setAttribute("opacity","0"); }
-      v.glow.setAttribute("opacity",(m*0.3*v.focusFactor).toFixed(3));
+      v.glow.setAttribute("opacity",Math.min(1, m*(0.3+v.flash)*v.focusFactor).toFixed(3));
       v.olbl.setAttribute("opacity",(m*0.6*v.focusFactor).toFixed(3));
     });
+
+    // ---- alignment flares: count integer crossings of years·(ratio−1) since last frame ----
+    if(m>0.4 && !reduceMotion && years!==prevYears && Math.abs(years-prevYears)<0.3){
+      conjPairs.forEach(cp=>{
+        const a=prevYears*cp.k, b=years*cp.k;
+        if(Math.floor(Math.max(a,b)) - Math.floor(Math.min(a,b)) >= 1) spawnSpark(cp.v);
+      });
+    }
+    prevYears = years;
   }
 
   let last = null;
@@ -1103,11 +1137,35 @@ footer .cite a:hover{color:var(--brass-bright);}
       if(years>999) years=0;          // guard against float drift
       need=true;
     }
+    if(yearRun && !dragging){         // "One year": ease exactly one Earth year, then stop
+      yearRun.t+=dt;
+      const k=Math.min(1, yearRun.t/yearRun.dur);
+      const e = k<0.5 ? 4*k*k*k : 1-Math.pow(-2*k+2,3)/2;
+      years = yearRun.from + e;
+      if(k>=1) cancelYearRun();
+      need=true;
+    }
     if(morph!==morphTarget){          // ease the view morph (~850ms) even when paused
       const step=dt/0.85;
       morph = morph<morphTarget ? Math.min(morphTarget,morph+step) : Math.max(morphTarget,morph-step);
       need=true;
     }
+    // alignment flares fade out + planet flash decay (runs even while paused)
+    for(let i=sparks.length-1;i>=0;i--){
+      const s=sparks[i]; s.t+=dt; const k=s.t/s.dur;
+      if(k>=1){ s.g.remove(); sparks.splice(i,1); need=true; continue; }
+      const fade=1-k, grow=1+k*2.2;
+      s.ray.setAttribute("opacity",(fade*0.55).toFixed(3));
+      s.ring1.setAttribute("r",(s.d1*1.3*grow).toFixed(2));
+      s.ring2.setAttribute("r",(s.d2*1.3*grow).toFixed(2));
+      s.ring1.setAttribute("opacity",(fade*0.7).toFixed(3));
+      s.ring2.setAttribute("opacity",(fade*0.7).toFixed(3));
+      need=true;
+    }
+    planetView.forEach(v=>{
+      if(v.flash>0.01){ v.flash*=Math.exp(-3*dt); need=true; }
+      else if(v.flash!==0){ v.flash=0; need=true; }
+    });
     if(need) render();
     requestAnimationFrame(loop);
   }
@@ -1179,9 +1237,20 @@ footer .cite a:hover{color:var(--brass-bright);}
   setPlaying(playing);
 
   /* ---- controls ---- */
-  playBtn.addEventListener("click",()=>setPlaying(!playing));
-  document.getElementById("reset").addEventListener("click",()=>{years=0;setPlaying(false);render();});
-  sliderEl.addEventListener("input",()=>{ setPlaying(false); years=parseFloat(sliderEl.value); render(); });
+  playBtn.addEventListener("click",()=>{ cancelYearRun(); setPlaying(!playing); });
+  document.getElementById("reset").addEventListener("click",()=>{ cancelYearRun(); years=0; setPlaying(false); render(); });
+  sliderEl.addEventListener("input",()=>{ cancelYearRun(); setPlaying(false); years=parseFloat(sliderEl.value); render(); });
+
+  /* ---- "One year": play exactly one Earth year, then ease to a stop ---- */
+  const oneYrBtn=document.getElementById("oneyear");
+  function cancelYearRun(){ if(yearRun){ yearRun=null; oneYrBtn.classList.remove("running"); } }
+  oneYrBtn.addEventListener("click",()=>{
+    if(yearRun) return;
+    setPlaying(false);
+    if(reduceMotion){ years+=1; render(); return; }
+    yearRun={from:years, t:0, dur:3.2};
+    oneYrBtn.classList.add("running");
+  });
 
   /* ---- crank / drag interaction (+ tap-to-focus on a planet) ---- */
   let dragging=false, lastAng=0, sx=0, sy=0, downPlanet=-1;
@@ -1192,6 +1261,7 @@ footer .cite a:hover{color:var(--brass-bright);}
   function angleAt(e,pv){ return Math.atan2(e.clientY-pv.y, e.clientX-pv.x); }
 
   function startDrag(e){
+    cancelYearRun();
     dragging=true; svg.classList.add("grabbing");
     const pv=pivotScreen(); lastAng=angleAt(e,pv);
     sx=e.clientX; sy=e.clientY;
