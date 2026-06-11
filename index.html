@@ -305,7 +305,21 @@ section{position:relative;z-index:2;}
 .btn .ico{width:9px;height:11px;display:inline-block;position:relative;}
 .btn .ico::before{content:"";position:absolute;inset:0;border-style:solid;border-width:5.5px 0 5.5px 9px;border-color:transparent transparent transparent currentColor;}
 .btn.playing .ico::before{border-width:0;width:3px;height:11px;background:currentColor;box-shadow:6px 0 0 currentColor;border:0;}
-.btn.running{border-color:var(--brass);color:var(--brass-bright);background:rgba(201,168,106,.08);pointer-events:none;}
+
+/* the headline demo button: brass-filled, gently inviting, with a planet orbiting it */
+.btn.btn-primary{
+  border-color:transparent;color:#1a130a;font-weight:700;
+  background:var(--accent-grad);
+  box-shadow:0 2px 14px -5px rgba(201,168,106,.6),var(--plate-top);
+}
+.btn.btn-primary:not(.running){animation:opulse 3.2s ease-in-out infinite;}
+@keyframes opulse{0%,100%{box-shadow:0 2px 14px -6px rgba(201,168,106,.5),var(--plate-top);}50%{box-shadow:0 3px 26px -4px rgba(201,168,106,.9),var(--plate-top);}}
+.btn.btn-primary:hover{color:#140e05;border-color:transparent;background:var(--accent-grad);filter:brightness(1.07);transform:translateY(-1px);}
+.btn.btn-primary.running{color:#1a130a;background:var(--accent-grad);filter:brightness(.92);pointer-events:none;}
+.orbit-ico{position:relative;display:inline-block;width:14px;height:14px;border:1.5px solid currentColor;border-radius:50%;opacity:.92;}
+.orbit-ico::after{content:"";position:absolute;top:-2.5px;left:50%;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:currentColor;box-shadow:0 0 5px currentColor;}
+.btn.btn-primary:not(.running) .orbit-ico{animation:orbitspin 2.6s linear infinite;}
+@keyframes orbitspin{to{transform:rotate(360deg);}}
 
 /* Range slider */
 .slider-wrap{flex:1;display:flex;flex-direction:column;gap:8px;min-width:0;}
@@ -352,7 +366,8 @@ input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;bor
 .prow .cnt small{color:var(--faint);font-size:.72em;letter-spacing:.1em;}
 .hint{margin-top:18px;color:var(--faint);font-size:.78rem;line-height:1.5;}
 .hint .tap-cue{color:var(--brass);}
-/* planet focus: pulsing halo + fact line */
+/* planet focus: the spotlight (disc/ring/gear dimming) is eased in JS each frame,
+   because Chrome will not run CSS transitions on an SVG group's opacity. */
 .focus-halo{transition:opacity .4s var(--ease);}
 .focus-halo.on{opacity:.45;animation:halopulse 1.9s ease-in-out infinite;}
 @keyframes halopulse{0%,100%{opacity:.2}50%{opacity:.62}}
@@ -470,7 +485,9 @@ footer .cite a:hover{color:var(--brass-bright);}
 @media (max-width:560px){
   .ctl-row{flex-wrap:wrap;gap:14px;}
   .slider-wrap{order:-1;flex-basis:100%;}   /* slider on its own full-width row */
-  .btn{flex:1;justify-content:center;}        /* play + reset share the next row */
+  .btn{flex:1;justify-content:center;}        /* play + reset share a row */
+  #oneyear{flex-basis:100%;order:0;}          /* the demo button gets its own prominent full-width row */
+  #play,#reset{order:1;}                       /* play + reset together below it */
   .viewtoggle{width:100%;align-self:stretch;}
   .vt-btn{flex:1;padding:12px 8px;text-align:center;}
   .topbar .src,.topbar .sep{display:none;}    /* keep the slim header uncluttered; source link stays */
@@ -618,7 +635,7 @@ footer .cite a:hover{color:var(--brass-bright);}
     <div class="controls reveal" style="margin-top:clamp(22px,3vw,32px);">
       <div class="ctl-row">
         <button class="btn" id="play" aria-label="Play or pause auto-rotation"><span class="ico"></span><span id="playlabel">Play</span></button>
-        <button class="btn" id="oneyear" aria-label="Advance exactly one Earth year">One year</button>
+        <button class="btn btn-primary" id="oneyear" aria-label="Run exactly one Earth year"><span class="orbit-ico" aria-hidden="true"></span><span id="oneyearlabel">Run one year</span></button>
         <div class="slider-wrap">
           <div class="caption"><span>Crank the years</span><span id="sliderval">0.00 yr</span></div>
           <input type="range" id="slider" min="0" max="12" step="0.01" value="0" aria-label="Years elapsed" />
@@ -948,7 +965,7 @@ footer .cite a:hover{color:var(--brass-bright);}
     const phaseRad = meshPhase(DRIVE_TEETH, p.teeth, p.angle);
 
     // orbit ring (faint, tinted with the planet colour)
-    const ringEl = el("circle",{cx:0,cy:0,r:ro, fill:"none", stroke:p.hex, "stroke-opacity":.24, "stroke-width":.8});
+    const ringEl = el("circle",{cx:0,cy:0,r:ro, fill:"none", stroke:p.hex, "stroke-opacity":.24, "stroke-width":.8, class:"oring"});
     orbitLayer.appendChild(ringEl);
     orbitLayer.appendChild(el("circle",{cx:0,cy:0,r:ro, fill:"none", stroke:"rgba(244,241,234,.05)", "stroke-width":.4}));
 
@@ -964,6 +981,8 @@ footer .cite a:hover{color:var(--brass-bright);}
 
     // the shared planet disc (morphs between gear rim and orbit) + pulse halo + soft glow
     const disc = el("g",{"data-pi":pi, style:"cursor:pointer"});
+    // generous invisible hit-area so a small, fast-moving planet is still easy to tap
+    disc.appendChild(el("circle",{r:Math.max(13,discR*2.4), fill:"transparent", "pointer-events":"all"}));
     const focusHalo = el("circle",{r:discR*2.4, fill:"none", stroke:p.hex, "stroke-width":1.1, opacity:0, class:"focus-halo"});
     const glow = el("circle",{r:discR*1.8, fill:p.hex, opacity:0, filter:"url(#soft)"});
     disc.appendChild(focusHalo);
@@ -973,7 +992,7 @@ footer .cite a:hover{color:var(--brass-bright);}
 
     planetView.push({p, ratio, ro, markerR, discR, dir:-1, phaseRad,
       gx:p.pos[0], gy:p.pos[1], disc, glow, segs, olbl, ringEl, focusHalo,
-      gearGroup:gearGroupByName[p.name], focusFactor:1, flash:0,
+      gearGroup:gearGroupByName[p.name], dim:0, dimT:0, hi:0, hiT:0, flash:0,
       trailAngle:Math.min(0.35+ratio*0.42,2.5)});
   });
 
@@ -1102,6 +1121,11 @@ footer .cite a:hover{color:var(--brass-bright);}
       const Ox=v.ro*Math.cos(ao), Oy=v.ro*Math.sin(ao);
       const x=lerp(Gx,Ox,em), y=lerp(Gy,Oy,em);
       v.disc.setAttribute("transform",`translate(${x.toFixed(2)} ${y.toFixed(2)})`);
+      // focus spotlight, eased in JS (CSS can't transition SVG group opacity)
+      const ff = 1 - 0.7*v.dim;                                    // prominence for trail/glow/label
+      v.disc.style.opacity      = (1 - 0.6*v.dim).toFixed(3);      // dimmed planets fade to .4
+      v.gearGroup.style.opacity = (1 - 0.58*v.dim).toFixed(3);
+      v.ringEl.style.strokeOpacity = (0.24 - 0.14*v.dim + 0.46*v.hi).toFixed(3); // focused ring brightens
       if(m>0.012){
         const n=v.segs.length, dth=v.trailAngle/n;
         for(let i=0;i<n;i++){
@@ -1110,11 +1134,11 @@ footer .cite a:hover{color:var(--brass-bright);}
           v.segs[i].setAttribute("y1",(v.ro*Math.sin(a1)).toFixed(2));
           v.segs[i].setAttribute("x2",(v.ro*Math.cos(a2)).toFixed(2));
           v.segs[i].setAttribute("y2",(v.ro*Math.sin(a2)).toFixed(2));
-          v.segs[i].setAttribute("opacity",((1-i/n)*0.72*m*v.focusFactor).toFixed(3));
+          v.segs[i].setAttribute("opacity",((1-i/n)*0.72*m*ff).toFixed(3));
         }
       } else { for(const s of v.segs) s.setAttribute("opacity","0"); }
-      v.glow.setAttribute("opacity",Math.min(1, m*(0.3+v.flash)*v.focusFactor).toFixed(3));
-      v.olbl.setAttribute("opacity",(m*0.6*v.focusFactor).toFixed(3));
+      v.glow.setAttribute("opacity",Math.min(1, m*(0.3+v.flash)*ff).toFixed(3));
+      v.olbl.setAttribute("opacity",(m*0.6*ff).toFixed(3));
     });
 
     // ---- alignment flares: count integer crossings of years·(ratio−1) since last frame ----
@@ -1165,6 +1189,9 @@ footer .cite a:hover{color:var(--brass-bright);}
     planetView.forEach(v=>{
       if(v.flash>0.01){ v.flash*=Math.exp(-3*dt); need=true; }
       else if(v.flash!==0){ v.flash=0; need=true; }
+      const r=Math.min(1,dt*5);            // ease focus dim/highlight toward their targets
+      if(Math.abs(v.dim-v.dimT)>0.002){ v.dim+=(v.dimT-v.dim)*r; need=true; } else v.dim=v.dimT;
+      if(Math.abs(v.hi -v.hiT )>0.002){ v.hi +=(v.hiT -v.hi )*r; need=true; } else v.hi =v.hiT;
     });
     if(need) render();
     requestAnimationFrame(loop);
@@ -1203,11 +1230,9 @@ footer .cite a:hover{color:var(--brass-bright);}
     focused = (idx===focused) ? -1 : idx;     // tapping the same planet clears it
     const f = focused;
     planetView.forEach((v,i)=>{
-      const on = f<0 || i===f;
-      v.focusFactor = on ? 1 : 0.3;
-      v.disc.setAttribute("opacity", f<0?1:(i===f?1:0.4));
-      v.ringEl.setAttribute("stroke-opacity", f<0?0.24:(i===f?0.7:0.1));
-      v.gearGroup.setAttribute("opacity", f<0?1:(i===f?1:0.42));
+      // set targets only; render() eases dim/hi each frame so the spotlight fades, not snaps
+      v.dimT = (f<0 || i===f) ? 0 : 1;   // 0 = full prominence, 1 = dimmed back
+      v.hiT  = (i===f)        ? 1 : 0;   // 1 = the focused planet (its ring brightens)
       v.focusHalo.classList.toggle("on", i===f);
     });
     [...rows.children].forEach((r,i)=>r.classList.toggle("focused", i===f));
@@ -1243,17 +1268,25 @@ footer .cite a:hover{color:var(--brass-bright);}
 
   /* ---- "One year": play exactly one Earth year, then ease to a stop ---- */
   const oneYrBtn=document.getElementById("oneyear");
-  function cancelYearRun(){ if(yearRun){ yearRun=null; oneYrBtn.classList.remove("running"); } }
+  const oneYrLbl=document.getElementById("oneyearlabel");
+  function cancelYearRun(){ if(yearRun){ yearRun=null; oneYrBtn.classList.remove("running"); oneYrLbl.textContent="Run one year"; } }
   oneYrBtn.addEventListener("click",()=>{
     if(yearRun) return;
     setPlaying(false);
+    // on stacked (narrow) layouts the instrument sits above the controls — bring it
+    // into view so you actually watch the year unfold
+    if(window.innerWidth<=880){
+      const frame=document.querySelector(".orrery-frame");
+      if(frame) frame.scrollIntoView({behavior: reduceMotion?"auto":"smooth", block:"center"});
+    }
     if(reduceMotion){ years+=1; render(); return; }
-    yearRun={from:years, t:0, dur:3.2};
+    yearRun={from:years, t:0, dur:3.4};
     oneYrBtn.classList.add("running");
+    oneYrLbl.textContent="Running…";
   });
 
   /* ---- crank / drag interaction (+ tap-to-focus on a planet) ---- */
-  let dragging=false, lastAng=0, sx=0, sy=0, downPlanet=-1;
+  let dragging=false, lastAng=0, sx=0, sy=0, downPlanet=-1, dragRef=1;
   function pivotScreen(){                 // screen-space position of the SVG origin (Sun centre)
     const m=svg.getScreenCTM();
     return {x:m.e, y:m.f};                 // origin (0,0) maps to (e,f)
@@ -1267,6 +1300,8 @@ footer .cite a:hover{color:var(--brass-bright);}
     sx=e.clientX; sy=e.clientY;
     const hit = e.target.closest && e.target.closest("[data-pi]");
     downPlanet = hit ? +hit.dataset.pi : -1;
+    // in the orbits view, the grabbed planet should track the cursor exactly
+    dragRef = downPlanet>=0 ? planetView[downPlanet].ratio : 1;
     svg.setPointerCapture && e.pointerId!=null && svg.setPointerCapture(e.pointerId);
     e.preventDefault();
   }
@@ -1274,7 +1309,8 @@ footer .cite a:hover{color:var(--brass-bright);}
     if(!dragging) return;
     const pv=pivotScreen(); const a=angleAt(e,pv);
     let d=a-lastAng; if(d>Math.PI)d-=2*Math.PI; if(d<-Math.PI)d+=2*Math.PI;
-    years += d/(2*Math.PI);               // clockwise drag advances time
+    if(morphTarget===1) years += -d/(TWO_PI*dragRef);  // orbits: the planet you grab follows your cursor
+    else                years +=  d/(2*Math.PI);        // mechanism: clockwise drag turns the crank
     if(years<0) years=0;
     lastAng=a; render();
   }
